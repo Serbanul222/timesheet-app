@@ -73,7 +73,7 @@ export function TimesheetForm({ timesheet, onSuccess, onCancel }: TimesheetFormP
   } = useForm<TimesheetFormData>({
     resolver: zodResolver(timesheetSchema),
     defaultValues: {
-      employee_name: timesheet?.employee_name || '',
+      employee_name: timesheet?.employee?.full_name || '',
       store_id: timesheet?.store_id || profile?.store_id || '',
       zone_id: timesheet?.zone_id || profile?.zone_id || '',
       period_start: timesheet?.period_start?.split('T')[0] || '',
