@@ -6,6 +6,9 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Define the user role enum type
+export type UserRole = 'HR' | 'ASM' | 'STORE_MANAGER'
+
 export interface Database {
   public: {
     Tables: {
@@ -14,7 +17,7 @@ export interface Database {
           id: string
           email: string
           full_name: string
-          role: 'HR' | 'ASM' | 'STORE_MANAGER'
+          role: UserRole  // This matches the 'role' column in your schema
           zone_id: string | null
           store_id: string | null
           created_at: string
@@ -23,7 +26,7 @@ export interface Database {
           id: string
           email: string
           full_name: string
-          role?: 'HR' | 'ASM' | 'STORE_MANAGER'
+          role?: UserRole
           zone_id?: string | null
           store_id?: string | null
           created_at?: string
@@ -32,7 +35,7 @@ export interface Database {
           id?: string
           email?: string
           full_name?: string
-          role?: 'HR' | 'ASM' | 'STORE_MANAGER'
+          role?: UserRole
           zone_id?: string | null
           store_id?: string | null
           created_at?: string
@@ -159,7 +162,7 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
-      user_role: 'HR' | 'ASM' | 'STORE_MANAGER'
+      user_role: UserRole
     }
     CompositeTypes: {
       [_ in never]: never
