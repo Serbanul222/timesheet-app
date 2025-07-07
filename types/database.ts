@@ -100,7 +100,7 @@ export interface Database {
           position?: string | null
           employee_code?: string | null
           store_id: string
-          zone_id?: string
+          zone_id: string
           created_at?: string
         }
         Update: {
@@ -130,11 +130,11 @@ export interface Database {
         Insert: {
           id?: string
           employee_id: string
-          store_id?: string
-          zone_id?: string
+          store_id: string
+          zone_id: string
           period_start: string
           period_end: string
-          total_hours?: number
+          total_hours: number
           notes?: string | null
           created_by?: string | null
           created_at?: string
