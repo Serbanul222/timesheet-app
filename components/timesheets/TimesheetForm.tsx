@@ -170,8 +170,54 @@ export function TimesheetForm({ timesheet, onSuccess, onCancel }: TimesheetFormP
           }
         })
       } else {
+        // For new timesheets, we need to find or create an employee first
+        // First, try to find an existing employee with this name
+        const { data: existingEmployees, error: employeeSearchError } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('full_name', data.employee_name)
+          .eq('store_id', data.store_id)
+          .limit(1)
+
+        if (employeeSearchError) {
+          console.error('Error searching for employee:', employeeSearchError)
+          toast.error('Failed to search for employee')
+          return
+        }
+
+        let employeeId: string
+
+        if (existingEmployees && existingEmployees.length > 0) {
+          // Use existing employee
+          employeeId = existingEmployees[0].id
+          console.log('Using existing employee:', employeeId)
+        } else {
+          // Create new employee
+          const { data: newEmployee, error: createEmployeeError } = await supabase
+            .from('employees')
+            .insert({
+              full_name: data.employee_name,
+              store_id: data.store_id,
+              zone_id: data.zone_id,
+              position: 'Staff', // Default position
+              employee_code: null
+            })
+            .select('id')
+            .single()
+
+          if (createEmployeeError) {
+            console.error('Error creating employee:', createEmployeeError)
+            toast.error('Failed to create employee record')
+            return
+          }
+
+          employeeId = newEmployee.id
+          console.log('Created new employee:', employeeId)
+        }
+
+        // Now create the timesheet with the correct employee_id (not employee_name)
         createTimesheet({
-          employee_name: data.employee_name,
+          employee_id: employeeId,  // FIXED: Use employee_id instead of employee_name
           store_id: data.store_id,
           zone_id: data.zone_id,
           period_start: data.period_start,
