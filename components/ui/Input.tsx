@@ -14,8 +14,8 @@ const inputVariants = cva(
         error: 'border-red-500 focus:ring-red-500 focus:border-red-500 ring-1 ring-red-500',
         success: 'border-green-500 focus:ring-green-500 focus:border-green-500'
       },
-      // Size variations
-      size: {
+      // Size variations - renamed to avoid conflict with HTML size attribute
+      inputSize: {
         default: 'h-10',
         sm: 'h-9 text-sm',
         lg: 'h-11 text-base'
@@ -23,13 +23,14 @@ const inputVariants = cva(
     },
     defaultVariants: {
       variant: 'default',
-      size: 'default'
+      inputSize: 'default'
     }
   }
 )
 
+// Fix: Omit the conflicting 'size' property and add our custom props
 export interface InputProps
-  extends InputHTMLAttributes<HTMLInputElement>,
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>,
     VariantProps<typeof inputVariants> {
   label?: string
   error?: string
@@ -37,13 +38,15 @@ export interface InputProps
   leftIcon?: React.ReactNode
   rightIcon?: React.ReactNode
   containerClassName?: string
+  // Add our own size prop if needed for HTML size attribute
+  htmlSize?: number
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ 
     className,
     variant,
-    size,
+    inputSize,
     type = 'text',
     label,
     error,
@@ -52,6 +55,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     rightIcon,
     containerClassName,
     id,
+    htmlSize,
     ...props
   }, ref) => {
     // Auto-generate ID if not provided
@@ -87,8 +91,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             type={type}
             id={inputId}
+            size={htmlSize}
             className={cn(
-              inputVariants({ variant: effectiveVariant, size }),
+              inputVariants({ variant: effectiveVariant, inputSize }),
               leftIcon && 'pl-10',
               rightIcon && 'pr-10',
               'text-gray-900', // Force black text
