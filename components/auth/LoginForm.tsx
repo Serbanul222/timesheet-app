@@ -189,33 +189,6 @@ export function LoginForm({ redirectTo = '/dashboard', className = '' }: LoginFo
           )}
         </button>
       </form>
-
-      {/* Development Helper */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
-          <p className="text-xs text-gray-500 mb-2">Development Mode - Test Accounts:</p>
-          <div className="space-y-1 text-xs">
-            <button
-              onClick={() => reset({ email: 'hr@timesheet.com', password: 'password123' })}
-              className="block text-blue-600 hover:text-blue-800"
-            >
-              HR User
-            </button>
-            <button
-              onClick={() => reset({ email: 'asm@timesheet.com', password: 'password123' })}
-              className="block text-blue-600 hover:text-blue-800"
-            >
-              ASM User
-            </button>
-            <button
-              onClick={() => reset({ email: 'manager@timesheet.com', password: 'password123' })}
-              className="block text-blue-600 hover:text-blue-800"
-            >
-              Store Manager
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

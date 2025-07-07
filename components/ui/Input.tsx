@@ -2,10 +2,10 @@ import { forwardRef, InputHTMLAttributes } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
-// Input variants - like defining different input styles as constants
+// Input variants with black text by default
 const inputVariants = cva(
-  // Base styles - common to all inputs (like a base class in Java)
-  'flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
+  // Base styles with black text
+  'flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
   {
     variants: {
       // Different visual states
@@ -39,7 +39,6 @@ export interface InputProps
   containerClassName?: string
 }
 
-// Like creating a reusable component class in Java with proper encapsulation
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ 
     className,
@@ -55,19 +54,19 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     id,
     ...props
   }, ref) => {
-    // Auto-generate ID if not provided (like UUID generation in Java)
+    // Auto-generate ID if not provided
     const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`
     
-    // Determine variant based on error state (like conditional logic)
+    // Determine variant based on error state
     const effectiveVariant = error ? 'error' : variant
 
     return (
       <div className={cn('space-y-1', containerClassName)}>
-        {/* Label */}
+        {/* Label with black text */}
         {label && (
           <label 
             htmlFor={inputId}
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-gray-900"
           >
             {label}
           </label>
@@ -84,7 +83,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
           
-          {/* Input Field */}
+          {/* Input Field with forced black text */}
           <input
             type={type}
             id={inputId}
@@ -92,6 +91,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               inputVariants({ variant: effectiveVariant, size }),
               leftIcon && 'pl-10',
               rightIcon && 'pr-10',
+              'text-gray-900', // Force black text
               className
             )}
             ref={ref}

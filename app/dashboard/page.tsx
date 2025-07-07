@@ -1,184 +1,183 @@
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
-import { Header } from '@/components/layout/Header'
-import { RoleGuard } from '@/components/auth/RoleGuard'
+'use client'
+
+import { useState } from 'react'
+import { useAuth } from '@/hooks/auth/useAuth'
+import { useRouter } from 'next/navigation'
 
 export default function DashboardPage() {
-  return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
-            {/* Welcome Section */}
-            <div className="bg-white overflow-hidden shadow rounded-lg mb-6">
-              <div className="px-4 py-5 sm:p-6">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                  Welcome to Timesheet Manager
-                </h1>
-                <p className="text-gray-600">
-                  Manage employee timesheets efficiently across your organization.
-                </p>
-              </div>
-            </div>
+  const { user, profile, loading, error, signOut } = useAuth()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+  const router = useRouter()
 
-            {/* Quick Actions Grid */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              
-              {/* Timesheets Card */}
-              <RoleGuard requirePermission="canViewTimesheets" showFallback={false}>
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="p-5">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
-                            Timesheets
-                          </dt>
-                          <dd className="text-lg font-medium text-gray-900">
-                            Manage time records
-                          </dd>
-                        </dl>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 px-5 py-3">
-                    <div className="text-sm">
-                      <a href="/timesheets" className="font-medium text-blue-600 hover:text-blue-500">
-                        View all timesheets
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </RoleGuard>
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    try {
+      console.log('Dashboard: Starting sign out...')
+      await signOut()
+      console.log('Dashboard: Sign out completed, redirecting...')
+      router.push('/login')
+      router.refresh()
+    } catch (err) {
+      console.error('Dashboard: Sign out failed:', err)
+      setIsSigningOut(false)
+    }
+  }
 
-              {/* Employees Card */}
-              <RoleGuard requirePermission="canViewEmployees" showFallback={false}>
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="p-5">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                        </svg>
-                      </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
-                            Employees
-                          </dt>
-                          <dd className="text-lg font-medium text-gray-900">
-                            Manage staff
-                          </dd>
-                        </dl>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 px-5 py-3">
-                    <div className="text-sm">
-                      <a href="/employees" className="font-medium text-green-600 hover:text-green-500">
-                        View all employees
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </RoleGuard>
-
-              {/* Reports Card - Only for users who can export */}
-              <RoleGuard requirePermission="canExportTimesheets" showFallback={false}>
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="p-5">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                      </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
-                            Reports
-                          </dt>
-                          <dd className="text-lg font-medium text-gray-900">
-                            Analytics & exports
-                          </dd>
-                        </dl>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 px-5 py-3">
-                    <div className="text-sm">
-                      <a href="/reports" className="font-medium text-purple-600 hover:text-purple-500">
-                        View reports
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </RoleGuard>
-
-              {/* Admin Card - Only for HR */}
-              <RoleGuard allowedRoles={['HR']} showFallback={false}>
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="p-5">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
-                            Administration
-                          </dt>
-                          <dd className="text-lg font-medium text-gray-900">
-                            System settings
-                          </dd>
-                        </dl>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 px-5 py-3">
-                    <div className="text-sm">
-                      <a href="/admin" className="font-medium text-red-600 hover:text-red-500">
-                        Admin panel
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </RoleGuard>
-
-            </div>
-
-            {/* Recent Activity Section */}
-            <div className="mt-8">
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                    Recent Activity
-                  </h3>
-                  <div className="text-sm text-gray-500">
-                    <p>Recent timesheet activities will appear here...</p>
-                    <p className="mt-2">This section will show:</p>
-                    <ul className="mt-2 list-disc list-inside space-y-1">
-                      <li>Recently created timesheets</li>
-                      <li>Pending approvals</li>
-                      <li>System notifications</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </main>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
       </div>
-    </ProtectedRoute>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <h2 className="text-lg font-medium text-red-800 mb-2">Error</h2>
+          <p className="text-sm text-red-600">{error}</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Not Authenticated</h2>
+          <button
+            onClick={() => router.push('/login')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Simple Header */}
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <h1 className="text-xl font-semibold text-gray-900">
+              Timesheet Manager
+            </h1>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500">
+                {profile?.full_name || user.email}
+              </span>
+              <button
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+                className={`text-sm rounded-md px-3 py-1 transition-colors ${
+                  isSigningOut 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                }`}
+              >
+                {isSigningOut ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Signing out...
+                  </span>
+                ) : (
+                  'Sign Out'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Welcome to Your Dashboard
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">User Information</h3>
+                  <dl className="mt-2 space-y-1">
+                    <div>
+                      <dt className="inline text-sm font-medium text-gray-500">Email: </dt>
+                      <dd className="inline text-sm text-gray-900">{user.email}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline text-sm font-medium text-gray-500">Name: </dt>
+                      <dd className="inline text-sm text-gray-900">{profile?.full_name || 'Not set'}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline text-sm font-medium text-gray-500">Role: </dt>
+                      <dd className="inline text-sm text-gray-900">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          profile?.role === 'HR' ? 'bg-red-100 text-red-800' :
+                          profile?.role === 'ASM' ? 'bg-blue-100 text-blue-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {profile?.role || 'Not set'}
+                        </span>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
+                  <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                      <h4 className="font-medium text-gray-900">Timesheets</h4>
+                      <p className="text-sm text-gray-500">Manage employee time records</p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                      <h4 className="font-medium text-gray-900">Employees</h4>
+                      <p className="text-sm text-gray-500">Manage staff information</p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                      <h4 className="font-medium text-gray-900">Reports</h4>
+                      <p className="text-sm text-gray-500">View analytics and exports</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Debug Information */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h4 className="font-medium text-yellow-800 mb-2">Debug Information</h4>
+                    <div className="text-sm text-yellow-700 space-y-1">
+                      <p>User ID: {user.id}</p>
+                      <p>Has Profile: {profile ? 'Yes' : 'No'}</p>
+                      <p>Profile ID: {profile?.id || 'None'}</p>
+                      <p>Environment: {process.env.NODE_ENV}</p>
+                      <p>Sign Out State: {isSigningOut ? 'Signing out...' : 'Ready'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
   )
 }
