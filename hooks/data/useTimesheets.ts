@@ -112,9 +112,9 @@ export function useTimesheets(filters: TimesheetFilters = {}) {
     mutationFn: async (newTimesheet: TimesheetInsert): Promise<Timesheet> => {
       console.log('useTimesheets: Creating timesheet with data:', newTimesheet)
       
-      // Validate required fields
-      if (!newTimesheet.employee_name && !newTimesheet.employee_id) {
-        throw new Error('Employee name or ID is required')
+      // FIXED: Only validate employee_id since that's what the database expects
+      if (!newTimesheet.employee_id) {
+        throw new Error('Employee ID is required')
       }
       if (!newTimesheet.store_id) {
         throw new Error('Store ID is required')
