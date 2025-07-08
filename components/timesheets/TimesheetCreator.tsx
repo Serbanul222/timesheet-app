@@ -158,7 +158,7 @@ export function TimesheetCreator({
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900">Create New Timesheet</h2>
         <p className="text-sm text-gray-600 mt-1">
-          Select period and employees to create a new timesheet grid
+          Select period and employees to create a new timesheet grid with time intervals and status tracking
         </p>
       </div>
 
@@ -249,14 +249,32 @@ export function TimesheetCreator({
           )}
         </div>
 
+        {/* Feature Preview */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-blue-800 mb-2">✨ Enhanced Grid Features</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-blue-700">
+            <div>
+              <p><strong>Time Intervals:</strong> Enter "10-12" or "9:30-17:30"</p>
+              <p><strong>Auto-calculation:</strong> Hours calculated automatically</p>
+            </div>
+            <div>
+              <p><strong>Status Tracking:</strong> CO, CM, Dispensation support</p>
+              <p><strong>Comments:</strong> Add notes to any cell</p>
+            </div>
+          </div>
+        </div>
+
         {/* Summary */}
         {watchStartDate && selectedEmployeeIds.length > 0 && watchStoreId && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h4 className="text-sm font-medium text-blue-800 mb-2">Timesheet Summary</h4>
-            <div className="text-sm text-blue-700 space-y-1">
-              <p>Period: {new Date(watchStartDate).toLocaleDateString()} - {watch('endDate') ? new Date(watch('endDate')).toLocaleDateString() : '...'}</p>
-              <p>Employees: {selectedEmployeeIds.length}</p>
-              <p>Store: {stores.find(s => s.id === watchStoreId)?.name || 'Selected store'}</p>
+          <div className="bg-green-50 border border-green-200 rounded-md p-4">
+            <h4 className="text-sm font-medium text-green-800 mb-2">📊 Timesheet Summary</h4>
+            <div className="text-sm text-green-700 space-y-1">
+              <p><strong>Period:</strong> {new Date(watchStartDate).toLocaleDateString()} - {watch('endDate') ? new Date(watch('endDate')).toLocaleDateString() : '...'}</p>
+              <p><strong>Employees:</strong> {selectedEmployeeIds.length} selected</p>
+              <p><strong>Store:</strong> {stores.find(s => s.id === watchStoreId)?.name || 'Selected store'}</p>
+              <p><strong>Days:</strong> {watchStartDate && watch('endDate') ? 
+                Math.ceil((new Date(watch('endDate')).getTime() - new Date(watchStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 0} days
+              </p>
             </div>
           </div>
         )}
@@ -277,7 +295,7 @@ export function TimesheetCreator({
             loading={isSubmitting}
             disabled={isSubmitting || selectedEmployeeIds.length === 0 || !watchStoreId}
           >
-            Create Timesheet Grid
+            {isSubmitting ? 'Creating...' : 'Create Enhanced Grid'}
           </Button>
         </div>
       </form>

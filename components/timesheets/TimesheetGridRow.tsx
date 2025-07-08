@@ -17,8 +17,8 @@ interface TimesheetGridRowProps {
   onUpdateCell: (
     employeeId: string,
     date: string,
-    field: 'startTime' | 'endTime' | 'hours' | 'status' | 'notes',
-    value: string | number | DayStatus
+    field: 'timeInterval' | 'status' | 'notes',
+    value: string | DayStatus
   ) => void
 }
 
@@ -31,9 +31,6 @@ export function TimesheetGridRow({
   onCellSelect,
   onUpdateCell
 }: TimesheetGridRowProps) {
-  // Calculate minimum width to match header
-  const minWidth = 164 + (dateRange.length * 48) + 64
-
   return (
     <div className="timesheet-grid-row flex border-b border-gray-200 hover:bg-gray-50" style={{ minWidth: 'max-content' }}>
       {/* Employee Info */}
@@ -61,6 +58,7 @@ export function TimesheetGridRow({
         {dateRange.map((date, index) => {
           const dateKey = date.toISOString().split('T')[0]
           const dayData = entry.days[dateKey] || {
+            timeInterval: '',
             startTime: '',
             endTime: '',
             hours: 0,

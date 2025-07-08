@@ -8,7 +8,7 @@ import { EmployeeQuickAdd } from '@/components/employees/EmployeeQuickAdd'
 import { useEmployees } from '@/hooks/data/useEmployees'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { supabase } from '@/lib/supabase/client'
-import { type TimesheetGridData } from '@/types/timesheet-grid'
+import { type TimesheetGridData, type DayStatus } from '@/types/timesheet-grid'
 import { generateDateRange } from '@/lib/timesheet-utils'
 
 interface Store {
@@ -33,24 +33,32 @@ export function TimesheetControls({
   
   const [stores, setStores] = useState<Store[]>([])
   const [loadingStores, setLoadingStores] = useState(true)
+  const [showAddEmployee, setShowAddEmployee] = useState(false)
+
   const [selectedStoreId, setSelectedStoreId] = useState(timesheetData.storeId || '')
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>(
     timesheetData.entries.map(entry => entry.employeeId)
   )
-  const [showAddEmployee, setShowAddEmployee] = useState(false)
 
-  // Fetch stores
+  useEffect(() => {
+    setSelectedStoreId(timesheetData.storeId || '')
+  }, [timesheetData.storeId])
+
+  useEffect(() => {
+    const currentIds = timesheetData.entries.map(entry => entry.employeeId)
+    if (JSON.stringify(currentIds) !== JSON.stringify(selectedEmployeeIds)) {
+      setSelectedEmployeeIds(currentIds)
+    }
+  }, [timesheetData.entries, selectedEmployeeIds])
+
   useEffect(() => {
     const fetchStores = async () => {
       if (!profile) return
 
+      setLoadingStores(true)
       try {
-        let query = supabase
-          .from('stores')
-          .select('id, name, zone_id')
-          .order('name')
+        let query = supabase.from('stores').select('id, name, zone_id').order('name')
 
-        // Apply role-based filtering
         if (profile.role === 'STORE_MANAGER' && profile.store_id) {
           query = query.eq('id', profile.store_id)
         } else if (profile.role === 'ASM' && profile.zone_id) {
@@ -58,14 +66,14 @@ export function TimesheetControls({
         }
 
         const { data, error } = await query
+        if (error) throw error;
 
-        if (!error && data) {
+        if (data) {
           setStores(data)
-          
-          // Auto-select store for Store Managers
           if (profile.role === 'STORE_MANAGER' && profile.store_id && data.length === 1) {
-            setSelectedStoreId(profile.store_id)
-            onUpdate({ storeId: profile.store_id })
+            if (timesheetData.storeId !== profile.store_id) {
+              onUpdate({ storeId: profile.store_id })
+            }
           }
         }
       } catch (err) {
@@ -76,42 +84,42 @@ export function TimesheetControls({
     }
 
     fetchStores()
-  }, [profile, onUpdate])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile])
 
-  // Handle period change
+
   const handlePeriodChange = (field: 'startDate' | 'endDate', value: string) => {
     const updates: Partial<TimesheetGridData> = {
       [field]: new Date(value).toISOString()
     }
-
-    // Auto-adjust end date when start date changes
     if (field === 'startDate') {
       const start = new Date(value)
       const monthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0)
       updates.endDate = monthEnd.toISOString()
     }
-
     onUpdate(updates)
   }
 
-  // Handle store change
   const handleStoreChange = (storeId: string) => {
     setSelectedStoreId(storeId)
-    onUpdate({ storeId })
+    onUpdate({ storeId: storeId, entries: [] })
   }
 
-  // Handle employee selection
   const handleEmployeeSelection = (employeeIds: string[]) => {
-    console.log('Employee selection changed:', employeeIds)
-    setSelectedEmployeeIds(employeeIds)
-    
-    // Create new entries for selected employees
     const selectedEmployees = employees.filter(emp => employeeIds.includes(emp.id))
-    console.log('Selected employees:', selectedEmployees)
+    
+    if (selectedEmployees.length === 0) {
+      onUpdate({ entries: [] })
+      return
+    }
     
     const dateRange = generateDateRange(
       new Date(timesheetData.startDate),
       new Date(timesheetData.endDate)
+    )
+
+    const existingDataMap = new Map(
+      timesheetData.entries.map(entry => [entry.employeeId, entry.days])
     )
 
     const newEntries = selectedEmployees.map(emp => ({
@@ -120,28 +128,28 @@ export function TimesheetControls({
       position: emp.position || 'Staff',
       days: dateRange.reduce((acc, date) => {
         const dateKey = date.toISOString().split('T')[0]
-        // Keep existing data if employee was already in the grid
-        const existingEntry = timesheetData.entries.find(e => e.employeeId === emp.id)
-        acc[dateKey] = existingEntry?.days[dateKey] || {
+        const existingDays = existingDataMap.get(emp.id)
+        
+        acc[dateKey] = existingDays?.[dateKey] || {
+          timeInterval: '',
           startTime: '',
           endTime: '',
           hours: 0,
-          status: 'off' as const,
+          // ✅ FIX: Default status is now 'alege'
+          status: 'alege' as DayStatus,
           notes: ''
         }
         return acc
-      }, {} as Record<string, { startTime?: string; endTime?: string; hours: number; status: 'off' | 'CO' | 'CM' | 'dispensa'; notes: string }>)
+      }, {} as Record<string, any>)
     }))
-
-    console.log('Created entries:', newEntries)
-    onUpdate({ entries: newEntries })
+    
+    onUpdate({ 
+      entries: newEntries,
+      updatedAt: new Date().toISOString()
+    })
   }
 
-  // Handle new employee added
-  const handleEmployeeAdded = async (newEmployee: any) => {
-    console.log('New employee added:', newEmployee)
-    
-    // Create entry for the new employee immediately using the returned data
+  const handleEmployeeAdded = (newEmployee: any) => {
     const dateRange = generateDateRange(
       new Date(timesheetData.startDate),
       new Date(timesheetData.endDate)
@@ -154,38 +162,27 @@ export function TimesheetControls({
       days: dateRange.reduce((acc, date) => {
         const dateKey = date.toISOString().split('T')[0]
         acc[dateKey] = {
+          timeInterval: '',
+          startTime: '',
+          endTime: '',
           hours: 0,
-          status: 'off' as const,
+          // ✅ FIX: Default status is now 'alege'
+          status: 'alege' as DayStatus,
           notes: ''
         }
         return acc
-      }, {} as Record<string, { hours: number; status: 'off' | 'CO' | 'CM' | 'dispensa'; notes: string }>)
+      }, {} as Record<string, any>)
     }
 
-    // Add to existing entries
-    const updatedEntries = [...timesheetData.entries, newEntry]
-    console.log('Adding new entry directly:', newEntry)
-    
-    // Update the timesheet data with new entry
-    onUpdate({ entries: updatedEntries })
-    
-    // Update selected employee IDs
-    const newEmployeeIds = [...selectedEmployeeIds, newEmployee.id]
-    setSelectedEmployeeIds(newEmployeeIds)
-    
-    // Refresh the employees list in background
+    onUpdate({ entries: [...timesheetData.entries, newEntry] })
     refetchEmployees()
-    
-    // Hide the add form
     setShowAddEmployee(false)
   }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
-      {/* Period Selection */}
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Period & Setup</h3>
-        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <Input
             label="Start Date"
@@ -193,15 +190,12 @@ export function TimesheetControls({
             value={timesheetData.startDate.split('T')[0]}
             onChange={(e) => handlePeriodChange('startDate', e.target.value)}
           />
-          
           <Input
             label="End Date"
             type="date"
             value={timesheetData.endDate.split('T')[0]}
             onChange={(e) => handlePeriodChange('endDate', e.target.value)}
           />
-
-          {/* Store Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
               Store
@@ -227,7 +221,6 @@ export function TimesheetControls({
         </div>
       </div>
 
-      {/* Employee Selection */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <label className="block text-sm font-medium text-gray-900">
@@ -241,10 +234,7 @@ export function TimesheetControls({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => {
-                console.log('Add Employee button clicked')
-                setShowAddEmployee(true)
-              }}
+              onClick={() => setShowAddEmployee(true)}
               disabled={loadingEmployees}
             >
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -252,16 +242,9 @@ export function TimesheetControls({
               </svg>
               Add Employee
             </Button>
-            {/* Debug info */}
-            {process.env.NODE_ENV === 'development' && (
-              <span className="text-xs text-red-500">
-                ShowForm: {showAddEmployee ? 'Yes' : 'No'}
-              </span>
-            )}
           </div>
         </div>
 
-        {/* Add Employee Form */}
         {showAddEmployee && (
           <EmployeeQuickAdd
             onEmployeeAdded={handleEmployeeAdded}
@@ -285,7 +268,6 @@ export function TimesheetControls({
         )}
       </div>
 
-      {/* Summary */}
       {selectedEmployeeIds.length > 0 && selectedStoreId && (
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
           <div className="flex items-center justify-between">
@@ -301,21 +283,15 @@ export function TimesheetControls({
                 </span>
               </div>
             </div>
-            
             <div className="flex items-center space-x-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  // Quick action to select all employees
-                  const allEmployeeIds = employees.map(emp => emp.id)
-                  handleEmployeeSelection(allEmployeeIds)
-                }}
+                onClick={() => handleEmployeeSelection(employees.map(emp => emp.id))}
                 disabled={loadingEmployees}
               >
                 Select All
               </Button>
-              
               <Button
                 variant="outline"
                 size="sm"
@@ -328,6 +304,16 @@ export function TimesheetControls({
           </div>
         </div>
       )}
+
+      <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+        <h4 className="text-sm font-medium text-gray-800 mb-2">How to Use the Grid</h4>
+        <div className="text-xs text-gray-600 space-y-1">
+          <p>• <strong>Time Intervals:</strong> Double-click cells and enter time like "10-12" or "9:30-17:30" - hours calculate automatically</p>
+          <p>• <strong>Status Changes:</strong> Click status badges to cycle: Off → CO (Vacation) → CM (Medical) → D (Dispensation)</p>
+          <p>• <strong>Comments:</strong> Right-click any cell to add notes - orange dots show cells with comments</p>
+          <p>• <strong>Navigation:</strong> Use Tab/Enter to move between cells, Esc to cancel editing</p>
+        </div>
+      </div>
     </div>
   )
 }

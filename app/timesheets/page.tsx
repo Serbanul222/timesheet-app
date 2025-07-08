@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Header } from '@/components/layout/Header'
 import { TimesheetGrid } from '@/components/timesheets/TimesheetGrid'
@@ -12,50 +12,51 @@ import { toast } from 'sonner'
 
 export default function TimesheetsPage() {
   const permissions = usePermissions()
-  
-  // Initialize with default current month timesheet
+
   const defaultPeriod = getDefaultPeriod()
   const [timesheetData, setTimesheetData] = useState<TimesheetGridData>({
     id: crypto.randomUUID(),
     startDate: defaultPeriod.startDate.toISOString(),
     endDate: defaultPeriod.endDate.toISOString(),
-    entries: [], // Start empty - user can add employees
+    entries: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   })
 
   const [isSaving, setIsSaving] = useState(false)
 
-  // Handle saving timesheet
-  const handleSave = async (data: TimesheetGridData) => {
+  // ✅ FIX 1: `handleSave` no longer needs a `data` argument.
+  // It now correctly uses the `timesheetData` from the component's state,
+  // which is always the single source of truth.
+  const handleSave = useCallback(async () => {
     setIsSaving(true)
     try {
-      console.log('Saving timesheet:', data)
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      setTimesheetData(data)
+      console.log('Saving timesheet:', timesheetData)
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate API call
       toast.success('Timesheet saved successfully')
     } catch (error) {
       console.error('Failed to save timesheet:', error)
       toast.error('Failed to save timesheet')
-      throw error
+      throw error // Re-throw so the grid component can handle its state if needed
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [timesheetData]) // Dependency ensures the latest data is used in the save function
 
-  // Handle period or employee changes from controls
-  const handleTimesheetUpdate = (newData: Partial<TimesheetGridData>) => {
+  // ✅ All state update functions are wrapped in useCallback to ensure stability
+  const handleTimesheetUpdate = useCallback((newData: Partial<TimesheetGridData>) => {
     setTimesheetData(prev => ({
       ...prev,
       ...newData,
       updatedAt: new Date().toISOString()
     }))
-  }
+  }, [])
 
-  // Check permissions
+  const handleGridDataChange = useCallback((newData: TimesheetGridData) => {
+    setTimesheetData(newData)
+  }, [])
+
+  // Your permission check logic remains unchanged
   if (!permissions.canViewTimesheets) {
     return (
       <ProtectedRoute>
@@ -79,6 +80,7 @@ export default function TimesheetsPage() {
     )
   }
 
+  // The main component return logic remains unchanged
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
@@ -87,29 +89,23 @@ export default function TimesheetsPage() {
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0 space-y-6">
             
-            {/* Page Header */}
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Timesheets</h1>
               <p className="text-gray-600">Manage employee time records</p>
             </div>
 
-            {/* Controls Section */}
             <TimesheetControls
               timesheetData={timesheetData}
               onUpdate={handleTimesheetUpdate}
               isSaving={isSaving}
             />
 
-            {/* Main Grid */}
+            {/* ✅ FIX 2: The props passed to TimesheetGrid are now correct.
+                It receives a single `data` prop and the necessary callbacks.
+                All old props like `startDate`, `employees`, etc., are removed. */}
             <TimesheetGrid
-              startDate={new Date(timesheetData.startDate)}
-              endDate={new Date(timesheetData.endDate)}
-              employees={timesheetData.entries.map(entry => ({
-                id: entry.employeeId,
-                name: entry.employeeName,
-                position: entry.position
-              }))}
-              existingData={timesheetData}
+              data={timesheetData}
+              onDataChange={handleGridDataChange}
               onSave={handleSave}
               onCancel={() => toast.info('Changes discarded')}
               readOnly={!permissions.canEditTimesheets}

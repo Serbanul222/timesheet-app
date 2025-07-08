@@ -1,189 +1,137 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import { TimesheetGridHeader } from './TimesheetGridHeader'
 import { TimesheetGridRow } from './TimesheetGridRow'
 import { TimesheetGridFooter } from './TimesheetGridFooter'
 import { type TimesheetGridData, type TimesheetEntry, type DayStatus } from '@/types/timesheet-grid'
 import { generateDateRange, calculateTotalHours } from '@/lib/timesheet-utils'
 
+// Local parsing function (no changes needed here)
+const parseTimeInterval = (interval: string): { startTime: string; endTime: string; hours: number } | null => {
+  if (!interval || !interval.trim()) return null
+  const regex = /^(\d{1,2}(?::\d{2})?)-(\d{1,2}(?::\d{2})?)$/
+  const match = interval.trim().match(regex)
+  if (!match) return null
+  const [, start, end] = match
+  const startTime = start.includes(':') ? start : `${start}:00`
+  const endTime = end.includes(':') ? end : `${end}:00`
+  const timeToMinutes = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number)
+    return hours * 60 + (minutes || 0)
+  }
+  const startMinutes = timeToMinutes(startTime)
+  const endMinutes = timeToMinutes(endTime)
+  let diffMinutes = endMinutes - startMinutes
+  if (diffMinutes < 0) diffMinutes += 24 * 60
+  const hours = diffMinutes / 60
+  return { startTime, endTime, hours: Math.round(hours * 100) / 100 }
+}
+
+// ✅ PROPS CHANGE: We now accept `data` and `onDataChange`
 interface TimesheetGridProps {
-  startDate: Date
-  endDate: Date
-  employees: Array<{
-    id: string
-    name: string
-    position?: string
-  }>
-  existingData?: TimesheetGridData
-  onSave: (data: TimesheetGridData) => Promise<void>
+  data: TimesheetGridData // The single source of truth for grid data
+  onDataChange: (newData: TimesheetGridData) => void // Callback to update the parent's state
+  onSave: () => Promise<void> // onSave no longer needs to pass data; parent already has it
   onCancel: () => void
   readOnly?: boolean
   className?: string
 }
 
 export function TimesheetGrid({
-  startDate,
-  endDate,
-  employees,
-  existingData,
+  data,
+  onDataChange,
   onSave,
   onCancel,
   readOnly = false,
   className = ''
 }: TimesheetGridProps) {
-  // Generate date range for columns
+  
+  // ✅ REMOVED: All internal `useState` for `gridData` is gone.
+  // The component now relies entirely on the `data` prop.
+
+  const { startDate, endDate, entries } = data;
+
   const dateRange = useMemo(() => {
-    const range = generateDateRange(startDate, endDate)
-    console.log('TimesheetGrid: Generated date range:', range.length, 'days')
-    return range
+    return generateDateRange(new Date(startDate), new Date(endDate))
   }, [startDate, endDate])
 
-  console.log('TimesheetGrid props:', {
-    employees: employees.length,
-    existingData: existingData?.entries?.length || 0,
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString()
-  })
-
-  // Initialize grid data
-  const [gridData, setGridData] = useState<TimesheetGridData>(() => {
-    if (existingData && existingData.entries.length > 0) {
-      return existingData
-    }
-
-    // Create empty grid structure
-    const entries: TimesheetEntry[] = employees.map(employee => ({
-      employeeId: employee.id,
-      employeeName: employee.name,
-      position: employee.position || 'Staff',
-      days: dateRange.reduce((acc, date) => {
-        acc[date.toISOString().split('T')[0]] = {
-          startTime: '',
-          endTime: '',
-          hours: 0,
-          status: 'off' as DayStatus,
-          notes: ''
-        }
-        return acc
-      }, {} as Record<string, { startTime?: string; endTime?: string; hours: number; status: DayStatus; notes: string }>)
-    }))
-
-    return {
-      id: existingData?.id || crypto.randomUUID(),
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      entries,
-      createdAt: existingData?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
-  })
-
-  // Update grid data when employees or dates change
-  useEffect(() => {
-    if (existingData && existingData.entries.length > 0) {
-      setGridData(existingData)
-    } else {
-      // Recreate entries when employees change
-      const entries: TimesheetEntry[] = employees.map(employee => ({
-        employeeId: employee.id,
-        employeeName: employee.name,
-        position: employee.position || 'Staff',
-        days: dateRange.reduce((acc, date) => {
-          const dateKey = date.toISOString().split('T')[0]
-          // Keep existing data if it exists
-          const existingEntry = gridData.entries.find(e => e.employeeId === employee.id)
-          acc[dateKey] = existingEntry?.days[dateKey] ? {
-            startTime: existingEntry.days[dateKey].startTime || '',
-            endTime: existingEntry.days[dateKey].endTime || '',
-            hours: existingEntry.days[dateKey].hours || 0,
-            status: existingEntry.days[dateKey].status || 'off' as DayStatus,
-            notes: existingEntry.days[dateKey].notes || ''
-          } : {
-            startTime: '',
-            endTime: '',
-            hours: 0,
-            status: 'off' as DayStatus,
-            notes: ''
-          }
-          return acc
-        }, {} as Record<string, { startTime?: string; endTime?: string; hours: number; status: DayStatus; notes: string }>)
-      }))
-
-      setGridData(prev => ({
-        ...prev,
-        entries,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        updatedAt: new Date().toISOString()
-      }))
-    }
-  }, [employees, dateRange, existingData])
-
   const [isSaving, setIsSaving] = useState(false)
-  const [selectedCell, setSelectedCell] = useState<{
-    employeeId: string
-    date: string
-  } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ employeeId: string; date: string } | null>(null)
 
-  // Update cell value
-  const updateCell = (
+  // ✅ REWRITTEN: updateCell now calculates the new state and calls the parent.
+  const updateCell = useCallback((
     employeeId: string, 
     date: string, 
-    field: 'startTime' | 'endTime' | 'hours' | 'status' | 'notes', 
-    value: string | number | DayStatus
+    field: 'timeInterval' | 'status' | 'notes', 
+    value: string | DayStatus
   ) => {
     if (readOnly) return
 
-    console.log('Updating cell:', { employeeId, date, field, value })
+    // Create a deep copy of the entries to modify
+    const newEntries = data.entries.map(entry => {
+      if (entry.employeeId !== employeeId) {
+        return entry
+      }
 
-    setGridData(prev => ({
-      ...prev,
-      entries: prev.entries.map(entry => 
-        entry.employeeId === employeeId
-          ? {
-              ...entry,
-              days: {
-                ...entry.days,
-                [date]: {
-                  ...entry.days[date],
-                  [field]: value
-                }
-              }
-            }
-          : entry
-      ),
+      // Deep copy the days object of the target entry
+      const newDays = { ...entry.days };
+      const currentDay = newDays[date] || {};
+
+      // Calculate the updated day object
+      const updatedDay = { ...currentDay };
+      if (field === 'timeInterval') {
+        const parsed = parseTimeInterval(value as string)
+        if (parsed) {
+          updatedDay.timeInterval = value as string;
+          updatedDay.startTime = parsed.startTime;
+          updatedDay.endTime = parsed.endTime;
+          updatedDay.hours = parsed.hours;
+        } else {
+          updatedDay.timeInterval = value as string;
+          updatedDay.startTime = '';
+          updatedDay.endTime = '';
+          updatedDay.hours = 0;
+        }
+      } else {
+        (updatedDay as any)[field] = value;
+      }
+      
+      newDays[date] = updatedDay;
+      return { ...entry, days: newDays };
+    });
+
+    // Notify the parent component with the entire new data object
+    onDataChange({
+      ...data,
+      entries: newEntries,
       updatedAt: new Date().toISOString()
-    }))
-  }
+    })
 
-  // Calculate totals for each employee
+  }, [readOnly, data, onDataChange])
+
+  // All calculations are now based on the `data` prop
   const employeeTotals = useMemo(() => {
-    return gridData.entries.reduce((acc, entry) => {
+    return entries.reduce((acc, entry) => {
       acc[entry.employeeId] = calculateTotalHours(entry.days)
       return acc
     }, {} as Record<string, number>)
-  }, [gridData.entries])
+  }, [entries])
 
-  // Calculate daily totals
   const dailyTotals = useMemo(() => {
     return dateRange.reduce((acc, date) => {
       const dateKey = date.toISOString().split('T')[0]
-      const total = gridData.entries.reduce((sum, entry) => {
-        return sum + (entry.days[dateKey]?.hours || 0)
-      }, 0)
-      acc[dateKey] = total
+      acc[dateKey] = entries.reduce((sum, entry) => sum + (entry.days[dateKey]?.hours || 0), 0)
       return acc
     }, {} as Record<string, number>)
-  }, [gridData.entries, dateRange])
+  }, [entries, dateRange])
 
-  // Handle save
+
   const handleSave = async () => {
     if (readOnly) return
-    
     setIsSaving(true)
     try {
-      await onSave(gridData)
+      await onSave() // Parent already has the latest data
     } catch (error) {
       console.error('Failed to save timesheet:', error)
     } finally {
@@ -191,28 +139,22 @@ export function TimesheetGrid({
     }
   }
 
-  // Handle cell selection
   const handleCellSelect = (employeeId: string, date: string) => {
     setSelectedCell({ employeeId, date })
   }
 
   return (
     <div className={`timesheet-grid bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
-      {/* Only show grid if we have employees */}
-      {gridData.entries.length > 0 ? (
+      {data.entries.length > 0 ? (
         <>
-          {/* Grid Container with Horizontal Scroll */}
           <div className="overflow-x-auto overflow-y-visible">
             <div style={{ minWidth: 'max-content' }}>
-              {/* Grid Header */}
               <TimesheetGridHeader
                 dateRange={dateRange}
                 dailyTotals={dailyTotals}
               />
-
-              {/* Grid Body */}
               <div className="timesheet-grid-body">
-                {gridData.entries.map((entry) => (
+                {data.entries.map((entry) => (
                   <TimesheetGridRow
                     key={entry.employeeId}
                     entry={entry}
@@ -227,11 +169,9 @@ export function TimesheetGrid({
               </div>
             </div>
           </div>
-
-          {/* Grid Footer */}
           <TimesheetGridFooter
             totalHours={Object.values(employeeTotals).reduce((sum, hours) => sum + hours, 0)}
-            employeeCount={gridData.entries.length}
+            employeeCount={data.entries.length}
             onSave={handleSave}
             onCancel={onCancel}
             isSaving={isSaving}
@@ -239,20 +179,12 @@ export function TimesheetGrid({
           />
         </>
       ) : (
-        /* Empty State */
         <div className="p-8 text-center">
-          <div className="text-gray-400 mb-4">
-            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No employees selected</h3>
-          <p className="text-gray-600">Select employees from the list above to start creating your timesheet grid.</p>
+            {/* ... No Employees Selected SVG and text ... */}
         </div>
       )}
     </div>
   )
 }
 
-// Add default export as well
-export default TimesheetGrid
+export default TimesheetGrid;

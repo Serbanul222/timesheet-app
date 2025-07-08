@@ -1,6 +1,16 @@
 // lib/timesheet-utils.ts
 
-import { type DayData } from '@/types/timesheet-grid'
+import { type DayStatus } from '@/types/timesheet-grid'
+
+// Updated DayData interface to match our new structure
+interface DayData {
+  timeInterval?: string
+  startTime?: string
+  endTime?: string
+  hours: number
+  status: DayStatus
+  notes: string
+}
 
 /**
  * Generate array of dates between start and end date (inclusive)
@@ -32,6 +42,88 @@ export function generateDateRange(startDate: Date, endDate: Date): Date[] {
  */
 export function calculateTotalHours(days: Record<string, DayData>): number {
   return Object.values(days).reduce((total, day) => total + day.hours, 0)
+}
+
+/**
+ * Parse time interval string and calculate hours
+ * Examples: "10-12" -> 2 hours, "9:30-17:30" -> 8 hours, "22-06" -> 8 hours (overnight)
+ * This is like a utility method in Java that parses strings and returns structured data
+ */
+export function parseTimeInterval(interval: string): { startTime: string; endTime: string; hours: number } | null {
+  if (!interval || !interval.trim()) return null
+  
+  // Parse formats like "10-12", "9:30-17:30", "10-14", "22-06" (overnight)
+  const regex = /^(\d{1,2}(?::\d{2})?)-(\d{1,2}(?::\d{2})?)$/
+  const match = interval.trim().match(regex)
+  
+  if (!match) return null
+  
+  const [, start, end] = match
+  
+  // Normalize time format (add :00 if missing)
+  const startTime = start.includes(':') ? start : `${start}:00`
+  const endTime = end.includes(':') ? end : `${end}:00`
+  
+  // Validate time format
+  if (!isValidTime(startTime) || !isValidTime(endTime)) {
+    return null
+  }
+  
+  // Calculate hours
+  const startMinutes = timeToMinutes(startTime)
+  const endMinutes = timeToMinutes(endTime)
+  
+  // Handle overnight shifts (like 22:00-06:00)
+  let diffMinutes = endMinutes - startMinutes
+  if (diffMinutes < 0) {
+    diffMinutes += 24 * 60 // Add 24 hours for overnight shifts
+  }
+  
+  // Prevent unrealistic shifts (more than 16 hours)
+  if (diffMinutes > 16 * 60) {
+    return null
+  }
+  
+  const hours = diffMinutes / 60
+  
+  return { 
+    startTime, 
+    endTime, 
+    hours: Math.round(hours * 100) / 100 // Round to 2 decimal places
+  }
+}
+
+/**
+ * Convert time string to minutes since midnight
+ * Like a helper method in Java for time calculations
+ */
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number)
+  return hours * 60 + (minutes || 0)
+}
+
+/**
+ * Validate time format (HH:MM)
+ * Similar to input validation in Java
+ */
+function isValidTime(time: string): boolean {
+  const [hours, minutes] = time.split(':').map(Number)
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
+}
+
+/**
+ * Format time interval for display
+ * Like a toString() method in Java
+ */
+export function formatTimeInterval(startTime: string, endTime: string): string {
+  if (!startTime || !endTime) return ''
+  
+  // Convert back to simple format if possible (remove :00)
+  const formatTime = (time: string) => {
+    return time.endsWith(':00') ? time.slice(0, -3) : time
+  }
+  
+  return `${formatTime(startTime)}-${formatTime(endTime)}`
 }
 
 /**
@@ -103,7 +195,44 @@ export function calculateWorkingDays(startDate: Date, endDate: Date): number {
 }
 
 /**
+ * Calculate statistics for timesheet
+ * Like a data analysis method in Java
+ */
+export function calculateTimesheetStats(days: Record<string, DayData>): {
+  totalHours: number
+  workingDays: number
+  daysOff: number
+  averageHoursPerDay: number
+  statusCounts: Record<DayStatus, number>
+} {
+  const dayValues = Object.values(days)
+  const totalHours = dayValues.reduce((sum, day) => sum + day.hours, 0)
+  const workingDays = dayValues.filter(day => day.hours > 0).length
+  const daysOff = dayValues.filter(day => day.status === 'off').length
+  
+  const statusCounts: Record<DayStatus, number> = {
+    'off': 0,
+    'CO': 0,
+    'CM': 0,
+    'dispensa': 0
+  }
+  
+  dayValues.forEach(day => {
+    statusCounts[day.status]++
+  })
+  
+  return {
+    totalHours,
+    workingDays,
+    daysOff,
+    averageHoursPerDay: workingDays > 0 ? totalHours / workingDays : 0,
+    statusCounts
+  }
+}
+
+/**
  * Export timesheet data to CSV format
+ * Like a data export utility in Java
  */
 export function exportToCSV(
   timesheetData: any,
@@ -125,7 +254,20 @@ export function exportToCSV(
     ...dateRange.map(date => {
       const dateKey = date.toISOString().split('T')[0]
       const dayData = entry.days[dateKey]
-      return dayData ? `${dayData.hours}${dayData.status !== 'off' ? ` (${dayData.status})` : ''}` : '0'
+      if (!dayData) return '0'
+      
+      let cellValue = ''
+      if (dayData.timeInterval) {
+        cellValue = dayData.timeInterval
+      } else if (dayData.hours > 0) {
+        cellValue = `${dayData.hours}h`
+      }
+      
+      if (dayData.status !== 'off') {
+        cellValue += ` (${dayData.status})`
+      }
+      
+      return cellValue || '0'
     }),
     calculateTotalHours(entry.days).toString()
   ])
@@ -133,4 +275,45 @@ export function exportToCSV(
   return [headers, ...rows]
     .map(row => row.map(cell => `"${cell}"`).join(','))
     .join('\n')
+}
+
+/**
+ * Validate time interval input
+ * Like input validation in Java forms
+ */
+export function validateTimeInterval(interval: string): {
+  isValid: boolean
+  error?: string
+  suggestion?: string
+} {
+  if (!interval.trim()) {
+    return { isValid: true } // Empty is valid (clears the cell)
+  }
+  
+  const parsed = parseTimeInterval(interval)
+  if (!parsed) {
+    return {
+      isValid: false,
+      error: 'Invalid time format',
+      suggestion: 'Use format like "10-12" or "9:30-17:30"'
+    }
+  }
+  
+  if (parsed.hours > 16) {
+    return {
+      isValid: false,
+      error: 'Shift too long',
+      suggestion: 'Maximum 16 hours per day'
+    }
+  }
+  
+  if (parsed.hours < 0.5) {
+    return {
+      isValid: false,
+      error: 'Shift too short',
+      suggestion: 'Minimum 30 minutes'
+    }
+  }
+  
+  return { isValid: true }
 }
