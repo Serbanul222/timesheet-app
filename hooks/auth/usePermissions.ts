@@ -6,59 +6,29 @@ import { useAuth } from './useAuth'
 export type UserRole = 'HR' | 'ASM' | 'STORE_MANAGER'
 
 interface Permissions {
-  // General permissions
   canViewAllZones: boolean
   canViewAllStores: boolean
   canManageUsers: boolean
-  canBypassTimeRestrictions: boolean
-  
-  // Timesheet permissions
   canCreateTimesheets: boolean
   canEditTimesheets: boolean
   canDeleteTimesheets: boolean
   canViewTimesheets: boolean
   canExportTimesheets: boolean
-  
-  // Employee permissions
   canCreateEmployees: boolean
   canEditEmployees: boolean
   canDeleteEmployees: boolean
   canViewEmployees: boolean
-  
-  // Data scope
-  allowedZoneIds: string[]
-  allowedStoreIds: string[]
 }
 
-export function usePermissions(): Permissions & { 
-  role: UserRole | null
-  hasRole: (role: UserRole) => boolean
-  canAccessZone: (zoneId: string) => boolean
-  canAccessStore: (storeId: string) => boolean
-} {
+export function usePermissions(): Permissions {
   const { profile } = useAuth()
+  
+  // By extracting the role (a primitive string), the useMemo hook below
+  // will only re-run when the role *value* changes, not the profile object reference.
+  const role = profile?.role
 
   const permissions = useMemo((): Permissions => {
-    if (!profile) {
-      return {
-        canViewAllZones: false,
-        canViewAllStores: false,
-        canManageUsers: false,
-        canBypassTimeRestrictions: false,
-        canCreateTimesheets: false,
-        canEditTimesheets: false,
-        canDeleteTimesheets: false,
-        canViewTimesheets: false,
-        canExportTimesheets: false,
-        canCreateEmployees: false,
-        canEditEmployees: false,
-        canDeleteEmployees: false,
-        canViewEmployees: false,
-        allowedZoneIds: [],
-        allowedStoreIds: []
-      }
-    }
-
+    // Base permissions for any authenticated user.
     const basePermissions = {
       canViewTimesheets: true,
       canCreateTimesheets: true,
@@ -66,107 +36,59 @@ export function usePermissions(): Permissions & {
       canViewEmployees: true,
       canCreateEmployees: true,
       canEditEmployees: true,
+      canViewAllZones: false,
+      canViewAllStores: false,
+      canManageUsers: false,
+      canDeleteTimesheets: false,
+      canExportTimesheets: false,
+      canDeleteEmployees: false,
     }
 
-    switch (profile.role) {
+    if (!role) {
+      // Return a default (disabled) set of permissions if there's no role.
+      return { 
+        ...basePermissions, 
+        canViewTimesheets: false, 
+        canCreateTimesheets: false, 
+        canEditTimesheets: false, 
+        canViewEmployees: false,
+        canCreateEmployees: false,
+        canEditEmployees: false,
+      }
+    }
+
+    switch (role) {
       case 'HR':
         return {
           ...basePermissions,
-          // HR has full access
           canViewAllZones: true,
           canViewAllStores: true,
           canManageUsers: true,
-          canBypassTimeRestrictions: true,
           canDeleteTimesheets: true,
           canExportTimesheets: true,
           canDeleteEmployees: true,
-          allowedZoneIds: [], // Empty means all zones
-          allowedStoreIds: [] // Empty means all stores
         }
 
       case 'ASM':
         return {
           ...basePermissions,
-          // ASM can see their zone and all stores within it
-          canViewAllZones: false,
-          canViewAllStores: false,
-          canManageUsers: false,
-          canBypassTimeRestrictions: false,
           canDeleteTimesheets: true,
           canExportTimesheets: true,
           canDeleteEmployees: true,
-          allowedZoneIds: profile.zone_id ? [profile.zone_id] : [],
-          allowedStoreIds: [] // Will be populated with stores from their zone
         }
 
       case 'STORE_MANAGER':
         return {
           ...basePermissions,
-          // Store Manager can only see their store
-          canViewAllZones: false,
-          canViewAllStores: false,
-          canManageUsers: false,
-          canBypassTimeRestrictions: false,
-          canDeleteTimesheets: false,
+          canDeleteTimesheets: false, // Store managers can't delete
           canExportTimesheets: false,
           canDeleteEmployees: false,
-          allowedZoneIds: profile.zone_id ? [profile.zone_id] : [],
-          allowedStoreIds: profile.store_id ? [profile.store_id] : []
         }
 
       default:
-        return {
-          ...basePermissions,
-          canViewAllZones: false,
-          canViewAllStores: false,
-          canManageUsers: false,
-          canBypassTimeRestrictions: false,
-          canDeleteTimesheets: false,
-          canExportTimesheets: false,
-          canDeleteEmployees: false,
-          allowedZoneIds: [],
-          allowedStoreIds: []
-        }
+        return basePermissions
     }
-  }, [profile])
+  }, [role]) // The dependency array now contains a stable, primitive value.
 
-  const hasRole = (role: UserRole): boolean => {
-    return profile?.role === role
-  }
-
-  const canAccessZone = (zoneId: string): boolean => {
-    if (!profile) return false
-    
-    // HR can access all zones
-    if (profile.role === 'HR') return true
-    
-    // Others can only access zones in their allowedZoneIds
-    return permissions.allowedZoneIds.length === 0 || 
-           permissions.allowedZoneIds.includes(zoneId)
-  }
-
-  const canAccessStore = (storeId: string): boolean => {
-    if (!profile) return false
-    
-    // HR can access all stores
-    if (profile.role === 'HR') return true
-    
-    // Store managers can only access their specific store
-    if (profile.role === 'STORE_MANAGER') {
-      return profile.store_id === storeId
-    }
-    
-    // ASM can access stores in their zone (this would need store zone lookup)
-    // For now, we'll use the allowedStoreIds if populated
-    return permissions.allowedStoreIds.length === 0 || 
-           permissions.allowedStoreIds.includes(storeId)
-  }
-
-  return {
-    ...permissions,
-    role: profile?.role || null,
-    hasRole,
-    canAccessZone,
-    canAccessStore
-  }
-} 
+  return permissions
+}

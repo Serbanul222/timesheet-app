@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { useRouter } from 'next/navigation'
 // Change this line - use default import instead of named import
-import RoleGuard from '@/components/auth/RoleGuard'
+//import RoleGuard from '@/components/auth/RoleGuard'
 
 export default function DashboardPage() {
   const { user, profile, loading, error, signOut } = useAuth()

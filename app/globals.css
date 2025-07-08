@@ -25,3 +25,66 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Global text color fixes - more targeted approach */
+@layer base {
+  /* Default text should be dark */
+  body, 
+  div, 
+  span, 
+  p, 
+  h1, h2, h3, h4, h5, h6,
+  label,
+  td, th {
+    color: #111827;
+  }
+  
+  /* Form elements with explicit colors */
+  input, 
+  select, 
+  textarea {
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+  
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af !important;
+  }
+  
+  /* Preserve specific Tailwind color classes */
+  .text-gray-500 { color: #6b7280 !important; }
+  .text-gray-600 { color: #4b5563 !important; }
+  .text-gray-700 { color: #374151 !important; }
+  .text-gray-800 { color: #1f2937 !important; }
+  .text-gray-900 { color: #111827 !important; }
+  
+  .text-blue-600 { color: #2563eb !important; }
+  .text-blue-700 { color: #1d4ed8 !important; }
+  .text-blue-800 { color: #1e40af !important; }
+  
+  .text-red-600 { color: #dc2626 !important; }
+  .text-red-700 { color: #b91c1c !important; }
+  .text-red-800 { color: #991b1b !important; }
+  
+  .text-green-600 { color: #16a34a !important; }
+  .text-green-700 { color: #15803d !important; }
+  .text-green-800 { color: #166534 !important; }
+  
+  .text-yellow-600 { color: #ca8a04 !important; }
+  .text-yellow-700 { color: #a16207 !important; }
+  .text-yellow-800 { color: #854d0e !important; }
+  
+  .text-purple-600 { color: #9333ea !important; }
+  .text-purple-700 { color: #7c3aed !important; }
+  .text-purple-800 { color: #6b21a8 !important; }
+  
+  .text-white { color: #ffffff !important; }
+  
+  /* Button text preservation */
+  button.bg-blue-600,
+  button.bg-red-600,
+  button.bg-green-600 {
+    color: #ffffff !important;
+  }
+}

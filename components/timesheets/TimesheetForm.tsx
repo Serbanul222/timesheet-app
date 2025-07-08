@@ -1,419 +1,130 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { useTimesheets, type TimesheetWithDetails } from '@/hooks/data/useTimesheets'
-import { useAuth } from '@/hooks/auth/useAuth'
-import { supabase } from '@/lib/supabase/client'
+import { useEffect } from 'react'
+import { useForm, Controller, useFieldArray } from 'react-hook-form'
+import { useTimesheets, TimesheetWithDetails } from '@/hooks/data/useTimesheets'
+import { useEmployees } from '@/hooks/data/useEmployees'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { toast } from 'sonner'
-
-const timesheetSchema = z.object({
-  employee_name: z.string()
-    .min(1, 'Employee name is required')
-    .min(2, 'Employee name must be at least 2 characters')
-    .max(100, 'Employee name cannot exceed 100 characters'),
-  store_id: z.string().min(1, 'Store is required'),
-  zone_id: z.string().min(1, 'Zone is required'),
-  period_start: z.string().min(1, 'Start date is required'),
-  period_end: z.string().min(1, 'End date is required'),
-  total_hours: z.number()
-    .min(0, 'Hours cannot be negative')
-    .max(200, 'Hours cannot exceed 200 per period'),
-  notes: z.string().optional()
-}).refine((data) => {
-  const start = new Date(data.period_start)
-  const end = new Date(data.period_end)
-  return end >= start
-}, {
-  message: 'End date must be after or equal to start date',
-  path: ['period_end']
-})
-
-type TimesheetFormData = z.infer<typeof timesheetSchema>
-
-interface Store {
-  id: string
-  name: string
-  zone_id: string
-}
-
-interface Zone {
-  id: string
-  name: string
-}
+import { eachDayOfInterval, format, startOfMonth, endOfMonth, getDay } from 'date-fns'
+import { DailyEntry } from '@/types/database'
 
 interface TimesheetFormProps {
-  timesheet?: TimesheetWithDetails | null
+  month: Date
+  employeeId: string
+  existingTimesheet?: TimesheetWithDetails
   onSuccess?: () => void
   onCancel?: () => void
 }
 
-export function TimesheetForm({ timesheet, onSuccess, onCancel }: TimesheetFormProps) {
-  const { createTimesheet, updateTimesheet, isCreating, isUpdating } = useTimesheets()
-  const { profile } = useAuth()
-  
-  const [stores, setStores] = useState<Store[]>([])
-  const [zones, setZones] = useState<Zone[]>([])
-  const [loadingStores, setLoadingStores] = useState(true)
-  const [loadingZones, setLoadingZones] = useState(true)
+export function TimesheetForm({ month, employeeId, existingTimesheet, onSuccess, onCancel }: TimesheetFormProps) {
+  const { upsertTimesheet, isUpserting } = useTimesheets()
+  const { employees } = useEmployees()
+  const employee = employees.find(e => e.id === employeeId)
 
-  const isEditing = !!timesheet
-  const isSubmitting = isCreating || isUpdating
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors }
-  } = useForm<TimesheetFormData>({
-    resolver: zodResolver(timesheetSchema),
+  const { control, handleSubmit } = useForm({
     defaultValues: {
-      employee_name: timesheet?.employee?.full_name || '',
-      store_id: timesheet?.store_id || profile?.store_id || '',
-      zone_id: timesheet?.zone_id || profile?.zone_id || '',
-      period_start: timesheet?.period_start?.split('T')[0] || '',
-      period_end: timesheet?.period_end?.split('T')[0] || '',
-      total_hours: timesheet?.total_hours || 0,
-      notes: timesheet?.notes || ''
+      daily_entries: [] as DailyEntry[]
     }
-  })
+  });
 
-  const watchStoreId = watch('store_id')
+  const { fields, replace } = useFieldArray({
+    control,
+    name: "daily_entries"
+  });
 
-  // Fetch stores and zones
   useEffect(() => {
-    const fetchData = async () => {
-      if (!profile) return
+    const daysInMonth = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
+    const existingEntries = new Map((existingTimesheet?.daily_entries || []).map(e => [format(new Date(e.date), 'yyyy-MM-dd'), e]));
+    
+    const newEntries = daysInMonth.map(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const existing = existingEntries.get(dateStr);
+      return {
+        date: dateStr,
+        status: existing?.status || 'work',
+        hours: existing?.hours || '',
+      };
+    });
+    replace(newEntries);
+  }, [month, existingTimesheet, replace]);
 
-      try {
-        console.log('Fetching stores and zones for role:', profile.role)
-        
-        // Fetch both in parallel
-        const [storesResponse, zonesResponse] = await Promise.all([
-          supabase
-            .from('stores')
-            .select('id, name, zone_id')
-            .order('name'),
-          supabase
-            .from('zones')
-            .select('id, name')
-            .order('name')
-        ])
+  const onSubmit = (data: { daily_entries: DailyEntry[] }) => {
+    upsertTimesheet({
+      timesheet: existingTimesheet,
+      employeeId,
+      month,
+      daily_entries: data.daily_entries
+    }, {
+      onSuccess: onSuccess
+    });
+  };
 
-        // Handle stores
-        if (storesResponse.error) {
-          console.error('Error fetching stores:', storesResponse.error)
-          toast.error('Failed to load stores')
-        } else {
-          console.log('Loaded stores:', storesResponse.data)
-          setStores(storesResponse.data || [])
-        }
-
-        // Handle zones
-        if (zonesResponse.error) {
-          console.error('Error fetching zones:', zonesResponse.error)
-          toast.error('Failed to load zones')
-        } else {
-          console.log('Loaded zones:', zonesResponse.data)
-          setZones(zonesResponse.data || [])
-        }
-
-      } catch (error) {
-        console.error('Fetch error:', error)
-      } finally {
-        setLoadingStores(false)
-        setLoadingZones(false)
-      }
-    }
-
-    fetchData()
-  }, [profile])
-
-  // Auto-select zone when store changes
-  useEffect(() => {
-    if (watchStoreId && stores.length > 0) {
-      const selectedStore = stores.find(store => store.id === watchStoreId)
-      if (selectedStore && selectedStore.zone_id) {
-        setValue('zone_id', selectedStore.zone_id)
-        console.log(`Auto-selected zone ${selectedStore.zone_id} for store ${watchStoreId}`)
-      }
-    }
-  }, [watchStoreId, stores, setValue])
-
-  // Auto-calculate period end
-  const handleStartDateChange = (startDate: string) => {
-    if (startDate && !isEditing) {
-      const start = new Date(startDate)
-      const end = new Date(start)
-      end.setDate(start.getDate() + 6)
-      setValue('period_end', end.toISOString().split('T')[0])
-    }
-  }
-
-  const onSubmit = async (data: TimesheetFormData) => {
-    try {
-      console.log('Submitting timesheet:', data)
-
-      if (isEditing && timesheet) {
-        updateTimesheet({
-          id: timesheet.id,
-          updates: {
-            period_start: data.period_start,
-            period_end: data.period_end,
-            total_hours: data.total_hours,
-            notes: data.notes || null
-          }
-        })
-      } else {
-        // For new timesheets, we need to find or create an employee first
-        // First, try to find an existing employee with this name
-        const { data: existingEmployees, error: employeeSearchError } = await supabase
-          .from('employees')
-          .select('id')
-          .eq('full_name', data.employee_name)
-          .eq('store_id', data.store_id)
-          .limit(1)
-
-        if (employeeSearchError) {
-          console.error('Error searching for employee:', employeeSearchError)
-          toast.error('Failed to search for employee')
-          return
-        }
-
-        let employeeId: string
-
-        if (existingEmployees && existingEmployees.length > 0) {
-          // Use existing employee
-          employeeId = existingEmployees[0].id
-          console.log('Using existing employee:', employeeId)
-        } else {
-          // Create new employee
-          const { data: newEmployee, error: createEmployeeError } = await supabase
-            .from('employees')
-            .insert({
-              full_name: data.employee_name,
-              store_id: data.store_id,
-              zone_id: data.zone_id,
-              position: 'Staff', // Default position
-              employee_code: null
-            })
-            .select('id')
-            .single()
-
-          if (createEmployeeError) {
-            console.error('Error creating employee:', createEmployeeError)
-            toast.error('Failed to create employee record')
-            return
-          }
-
-          employeeId = newEmployee.id
-          console.log('Created new employee:', employeeId)
-        }
-
-        // Now create the timesheet with the correct employee_id (not employee_name)
-        createTimesheet({
-          employee_id: employeeId,  // FIXED: Use employee_id instead of employee_name
-          store_id: data.store_id,
-          zone_id: data.zone_id,
-          period_start: data.period_start,
-          period_end: data.period_end,
-          total_hours: data.total_hours,
-          notes: data.notes || null
-        })
-      }
-
-      onSuccess?.()
-    } catch (error) {
-      console.error('Form submission error:', error)
-      toast.error('Failed to save timesheet')
-    }
+  if (!employee) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-600">Error</h2>
+        <p className="text-gray-700 mt-2">Could not find the selected employee. Please close this and try again.</p>
+        <Button variant="outline" className="mt-4" onClick={onCancel}>Close</Button>
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Employee Name */}
-      <Input
-        label="Employee *"
-        placeholder="Enter employee full name..."
-        {...register('employee_name')}
-        error={errors.employee_name?.message}
-        disabled={isEditing}
-      />
-
-      {/* Store and Zone Selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Store Selection */}
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <label className="block text-sm font-medium text-gray-900 mb-1">
-            Store *
-          </label>
-          {loadingStores ? (
-            <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>
-          ) : (
-            <select
-              {...register('store_id')}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 ${
-                errors.store_id ? 'border-red-500 ring-1 ring-red-500' : ''
-              }`}
-              style={{
-                color: '#111827', // Force dark text
-                backgroundColor: '#ffffff' // Force white background
-              }}
-            >
-              <option value="" style={{ color: '#6b7280', backgroundColor: '#ffffff' }}>
-                Select a store...
-              </option>
-              {stores.map((store) => (
-                <option 
-                  key={store.id} 
-                  value={store.id}
-                  style={{ color: '#111827', backgroundColor: '#ffffff' }}
-                >
-                  {store.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {errors.store_id && (
-            <p className="mt-1 text-sm text-red-600">{errors.store_id.message}</p>
-          )}
+          <h2 className="text-xl font-semibold text-gray-900">{employee.full_name}</h2>
+          <p className="text-gray-600">Editing timesheet for <span className="font-semibold">{format(month, 'MMMM yyyy')}</span></p>
         </div>
-
-        {/* Zone Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-1">
-            Zone *
-          </label>
-          {loadingZones ? (
-            <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>
-          ) : (
-            <select
-              {...register('zone_id')}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 ${
-                errors.zone_id ? 'border-red-500 ring-1 ring-red-500' : ''
-              }`}
-              style={{
-                color: '#111827', // Force dark text
-                backgroundColor: '#ffffff' // Force white background
-              }}
-            >
-              <option value="" style={{ color: '#6b7280', backgroundColor: '#ffffff' }}>
-                Select a zone...
-              </option>
-              {zones.map((zone) => (
-                <option 
-                  key={zone.id} 
-                  value={zone.id}
-                  style={{ color: '#111827', backgroundColor: '#ffffff' }}
-                >
-                  {zone.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {errors.zone_id && (
-            <p className="mt-1 text-sm text-red-600">{errors.zone_id.message}</p>
-          )}
-        </div>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
       </div>
 
-      {/* Success Message */}
-      {stores.length > 0 && zones.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-3">
-          <p className="text-sm text-green-700">
-            ✅ Successfully loaded {stores.length} stores and {zones.length} zones
-          </p>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-4 md:grid-cols-7 gap-4">
+          {fields.map((field, index) => {
+            const day = new Date(field.date);
+            const isWeekend = [0, 6].includes(getDay(day));
+            return (
+              <div key={field.id} className={`p-3 rounded-md border ${isWeekend ? 'bg-gray-100' : 'bg-white'}`}>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {format(day, 'EEE, d')}
+                </label>
+                <Controller
+                  name={`daily_entries.${index}.status`}
+                  control={control}
+                  render={({ field }) => (
+                    <select {...field} className="w-full mb-2 p-1 border-gray-300 rounded-md text-sm">
+                      <option value="work">Work</option>
+                      <option value="off">Off</option>
+                      <option value="CO">CO</option>
+                      <option value="other">Other</option>
+                    </select>
+                  )}
+                />
+                <Controller
+                  name={`daily_entries.${index}.hours`}
+                  control={control}
+                  render={({ field: inputField }) => (
+                    <Input {...inputField} placeholder="e.g. 10-18" />
+                  )}
+                />
+              </div>
+            )
+          })}
         </div>
-      )}
-
-      {/* Period Dates */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input
-          label="Period Start Date *"
-          type="date"
-          {...register('period_start')}
-          onChange={(e) => {
-            register('period_start').onChange(e)
-            handleStartDateChange(e.target.value)
-          }}
-          error={errors.period_start?.message}
-        />
         
-        <Input
-          label="Period End Date *"
-          type="date"
-          {...register('period_end')}
-          error={errors.period_end?.message}
-        />
-      </div>
-
-      {/* Total Hours */}
-      <Input
-        label="Total Hours *"
-        type="number"
-        step="0.5"
-        min="0"
-        max="200"
-        {...register('total_hours', { valueAsNumber: true })}
-        error={errors.total_hours?.message}
-        helperText="Enter total hours worked during this period (maximum 200 hours)"
-      />
-
-      {/* Notes */}
-      <div>
-        <label className="block text-sm font-medium text-gray-900 mb-1">
-          Notes (Optional)
-        </label>
-        <textarea
-          {...register('notes')}
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-          placeholder="Add any additional notes about this timesheet..."
-          style={{
-            color: '#111827',
-            backgroundColor: '#ffffff'
-          }}
-        />
-      </div>
-
-      {/* Form Actions */}
-      <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-        
-        <Button
-          type="submit"
-          loading={isSubmitting}
-          disabled={isSubmitting}
-        >
-          {isEditing ? 'Update Timesheet' : 'Create Timesheet'}
-        </Button>
-      </div>
-
-      {/* Validation Summary */}
-      {Object.keys(errors).length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-3">
-          <h4 className="text-sm font-medium text-red-800 mb-1">Please fix the following errors:</h4>
-          <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
-            {Object.entries(errors).map(([field, error]) => (
-              <li key={field}>
-                {field.replace('_', ' ')}: {error?.message}
-              </li>
-            ))}
-          </ul>
+        <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button type="submit" loading={isUpserting}>
+            Save Timesheet
+          </Button>
         </div>
-      )}
-    </form>
+      </form>
+    </div>
   )
 }
