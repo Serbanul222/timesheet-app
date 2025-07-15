@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { usePermissions } from '@/hooks/auth/usePermissions'
+import { LogoutButton } from '@/components/auth/LogoutButton'
 
 interface HeaderProps {
   className?: string
@@ -15,15 +16,9 @@ export function Header({ className = '' }: HeaderProps) {
   const permissions = usePermissions()
   const router = useRouter()
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
-  const [isSigningOut, setIsSigningOut] = useState(false)
 
   // Navigation items based on user permissions
   const navigationItems = [
-    {
-      name: 'Dashboard',
-      href: '/dashboard',
-      show: true
-    },
     {
       name: 'Timesheets',
       href: '/timesheets',
@@ -46,21 +41,7 @@ export function Header({ className = '' }: HeaderProps) {
     }
   ].filter(item => item.show)
 
-  // Handle sign out
-  const handleSignOut = async () => {
-    if (window.confirm('Are you sure you want to sign out?')) {
-      setIsSigningOut(true)
-      try {
-        await signOut()
-        router.push('/login')
-        router.refresh()
-      } catch (error) {
-        console.error('Sign out failed:', error)
-        setIsSigningOut(false)
-      }
-    }
-  }
-
+  // Don't render header if no user
   if (!user || !profile) {
     return null
   }
@@ -71,7 +52,7 @@ export function Header({ className = '' }: HeaderProps) {
         <div className="flex justify-between items-center h-16">
           {/* Logo and Brand */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="flex items-center">
+            <Link href="/timesheets" className="flex items-center">
               <div className="flex-shrink-0">
                 <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -111,7 +92,7 @@ export function Header({ className = '' }: HeaderProps) {
                 </p>
               </div>
               
-              {/* User Avatar */}
+              {/* User Avatar with Dropdown */}
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -139,51 +120,41 @@ export function Header({ className = '' }: HeaderProps) {
                     </Link>
                     
                     <div className="border-t border-gray-100 pt-1">
-                      <button
-                        onClick={handleSignOut}
-                        disabled={isSigningOut}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          isSigningOut 
-                            ? 'text-gray-400 cursor-not-allowed' 
-                            : 'text-red-600 hover:bg-red-50'
-                        }`}
-                      >
-                        {isSigningOut ? (
-                          <span className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Signing out...
-                          </span>
-                        ) : (
-                          <span className="flex items-center">
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                            Sign Out
-                          </span>
-                        )}
-                      </button>
+                      <div className="px-4 py-2">
+                        <LogoutButton
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-red-600 hover:text-red-800 hover:bg-red-50"
+                          showIcon={true}
+                          confirmLogout={true}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Mobile menu button - Simple sign out */}
+            {/* Mobile Sign Out Button - Always Visible */}
             <div className="md:hidden">
-              <button
-                onClick={handleSignOut}
-                disabled={isSigningOut}
-                className={`text-sm rounded-md px-3 py-1 transition-colors ${
-                  isSigningOut 
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                    : 'text-red-600 hover:text-red-800 hover:bg-red-50'
-                }`}
-              >
-                {isSigningOut ? 'Signing out...' : 'Sign Out'}
-              </button>
+              <LogoutButton
+                variant="outline"
+                size="sm"
+                className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                showIcon={false}
+                confirmLogout={true}
+              />
+            </div>
+
+            {/* Desktop Sign Out Button - Always Visible */}
+            <div className="hidden md:block">
+              <LogoutButton
+                variant="outline"
+                size="sm"
+                className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                showIcon={true}
+                confirmLogout={true}
+              />
             </div>
           </div>
         </div>

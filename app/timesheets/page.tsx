@@ -25,9 +25,6 @@ export default function TimesheetsPage() {
 
   const [isSaving, setIsSaving] = useState(false)
 
-  // ✅ FIX 1: `handleSave` no longer needs a `data` argument.
-  // It now correctly uses the `timesheetData` from the component's state,
-  // which is always the single source of truth.
   const handleSave = useCallback(async () => {
     setIsSaving(true)
     try {
@@ -37,13 +34,12 @@ export default function TimesheetsPage() {
     } catch (error) {
       console.error('Failed to save timesheet:', error)
       toast.error('Failed to save timesheet')
-      throw error // Re-throw so the grid component can handle its state if needed
+      throw error
     } finally {
       setIsSaving(false)
     }
-  }, [timesheetData]) // Dependency ensures the latest data is used in the save function
+  }, [timesheetData])
 
-  // ✅ All state update functions are wrapped in useCallback to ensure stability
   const handleTimesheetUpdate = useCallback((newData: Partial<TimesheetGridData>) => {
     setTimesheetData(prev => ({
       ...prev,
@@ -56,7 +52,7 @@ export default function TimesheetsPage() {
     setTimesheetData(newData)
   }, [])
 
-  // Your permission check logic remains unchanged
+  // Check permissions
   if (!permissions.canViewTimesheets) {
     return (
       <ProtectedRoute>
@@ -80,10 +76,10 @@ export default function TimesheetsPage() {
     )
   }
 
-  // The main component return logic remains unchanged
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
+        {/* Header with Sign Out Button */}
         <Header />
         
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -100,9 +96,6 @@ export default function TimesheetsPage() {
               isSaving={isSaving}
             />
 
-            {/* ✅ FIX 2: The props passed to TimesheetGrid are now correct.
-                It receives a single `data` prop and the necessary callbacks.
-                All old props like `startDate`, `employees`, etc., are removed. */}
             <TimesheetGrid
               data={timesheetData}
               onDataChange={handleGridDataChange}
