@@ -1,3 +1,4 @@
+// components/timesheets/TimesheetGridFooter.tsx - Fixed with proper validation
 'use client'
 
 import { Button } from '@/components/ui/Button'
@@ -10,6 +11,10 @@ interface TimesheetGridFooterProps {
   onCancel: () => void
   isSaving: boolean
   readOnly: boolean
+  canSave?: boolean
+  validationSummary?: string
+  hasValidationErrors?: boolean
+  hasSetupErrors?: boolean
 }
 
 export function TimesheetGridFooter({
@@ -18,7 +23,11 @@ export function TimesheetGridFooter({
   onSave,
   onCancel,
   isSaving,
-  readOnly
+  readOnly,
+  canSave = true,
+  validationSummary,
+  hasValidationErrors = false,
+  hasSetupErrors = false
 }: TimesheetGridFooterProps) {
   return (
     <div className="timesheet-grid-footer border-t-2 border-gray-300 bg-gray-50 p-4">
@@ -31,6 +40,27 @@ export function TimesheetGridFooter({
           <div className="text-sm text-gray-600">
             Total: <span className="font-bold text-lg text-blue-700">{formatHours(totalHours)}</span>
           </div>
+          
+          {/* Validation Status Indicator */}
+          {(hasValidationErrors || hasSetupErrors) && (
+            <div className="flex items-center text-sm font-medium">
+              {hasSetupErrors ? (
+                <>
+                  <svg className="w-4 h-4 mr-1 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-blue-600">Setup required</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-1 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-red-600">Cannot save: {validationSummary}</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -47,7 +77,13 @@ export function TimesheetGridFooter({
             <Button
               onClick={onSave}
               loading={isSaving}
-              disabled={isSaving}
+              disabled={isSaving || !canSave || hasValidationErrors || hasSetupErrors}
+              className={(hasValidationErrors || hasSetupErrors) ? 'opacity-50 cursor-not-allowed' : ''}
+              title={
+                hasSetupErrors ? 'Complete setup to enable saving' :
+                hasValidationErrors ? 'Fix validation errors to save' : 
+                'Save timesheet'
+              }
             >
               {isSaving ? 'Saving...' : 'Save Timesheet'}
             </Button>
@@ -82,9 +118,9 @@ export function TimesheetGridFooter({
             <div>
               <h4 className="text-sm font-medium text-gray-800 mb-2">📝 Status & Comments</h4>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>• <strong>Status:</strong> Click badges to cycle: Off → CO (Vacation) → CM (Medical) → D (Dispensation)</p>
+                <p>• <strong>Status:</strong> Select from dropdown - some absences allow partial hours</p>
                 <p>• <strong>Comments:</strong> Right-click cells to add notes • Orange dots indicate comments</p>
-                <p>• <strong>Navigation:</strong> Tab/Enter to move between cells, Esc to cancel</p>
+                <p>• <strong>Validation:</strong> Working hours and full-day absences cannot be combined</p>
               </div>
             </div>
           </div>
@@ -95,12 +131,13 @@ export function TimesheetGridFooter({
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div className="flex-1">
-                <h5 className="text-sm font-medium text-blue-800">💡 Pro Tips</h5>
+                <h5 className="text-sm font-medium text-blue-800">💡 Validation Rules</h5>
                 <div className="text-xs text-blue-700 mt-1 space-y-1">
-                  <p>• Use consistent time formats across your team for better reporting</p>
-                  <p>• Add comments for breaks, overtime reasons, or special circumstances</p>
-                  <p>• Save regularly to prevent data loss - changes auto-calculate but aren't saved until you click Save</p>
-                  <p>• Overnight shifts (like "22-06") are automatically calculated as 8 hours</p>
+                  <p>• Working hours and full-day absences (OFF, CO, Dispensation) cannot be combined</p>
+                  <p>• Some absences like Medical Leave (CM) can have partial hours</p>
+                  <p>• Red borders indicate validation errors that must be fixed before saving</p>
+                  <p>• Yellow borders indicate warnings that allow saving but should be reviewed</p>
+                  <p>• Store selection is required before employees can be selected</p>
                 </div>
               </div>
             </div>

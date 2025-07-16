@@ -1,7 +1,8 @@
+// components/ui/StatusBadge.tsx
 'use client'
 
-// export type DayStatus = 'alege' | 'off' | 'CO' | 'CM' | 'dispensa'
 import { type DayStatus } from '@/types/timesheet-grid'
+import { useAbsenceTypes } from '@/hooks/validation/useAbsenceTypes'
 
 interface StatusBadgeProps {
   status: DayStatus
@@ -14,55 +15,69 @@ export function StatusBadge({
   size = 'sm', 
   className = '' 
 }: StatusBadgeProps) {
-  // Get status styling - clear visual distinctions for each status
+  const { getColorClass, getDisplayName, isLoading } = useAbsenceTypes()
+  
+  const getSizeClasses = (size: string) => {
+    switch (size) {
+      case 'xs':
+        return 'px-1 py-0 text-xs min-w-[18px] h-4'
+      case 'sm':
+        return 'px-1.5 py-0.5 text-xs min-w-[24px] h-5'
+      case 'md':
+        return 'px-2 py-1 text-sm min-w-[32px] h-6'
+      default:
+        return 'px-1.5 py-0.5 text-xs min-w-[24px] h-5'
+    }
+  }
+  
+  if (isLoading) {
+    return (
+      <span className={`inline-flex items-center justify-center animate-pulse bg-gray-200 rounded ${getSizeClasses(size)} ${className}`}>
+        <span className="text-gray-400">...</span>
+      </span>
+    )
+  }
+  
   const getStatusStyles = () => {
     const baseClasses = 'inline-flex items-center justify-center font-medium rounded border cursor-pointer hover:opacity-80 transition-opacity'
+    const sizeClasses = getSizeClasses(size)
     
-    const sizeClasses = {
-      xs: 'px-1 py-0 text-xs min-w-[18px] h-4',
-      sm: 'px-1.5 py-0.5 text-xs min-w-[24px] h-5',
-      md: 'px-2 py-1 text-sm min-w-[32px] h-6'
+    if (status === 'alege') {
+      return `${baseClasses} ${sizeClasses} bg-white text-gray-600 border-gray-400 border-dashed`
     }
-
-    const statusStyles = {
-      // ✅ NEW: Added a style for the 'Alege' (Choose) placeholder status
-      alege: 'bg-white text-gray-600 border-gray-400 border-dashed',
-      off: 'bg-gray-100 text-gray-500 border-gray-300',
-      CO: 'bg-red-100 text-red-700 border-red-300 font-semibold',
-      CM: 'bg-yellow-100 text-yellow-700 border-yellow-300 font-semibold', 
-      dispensa: 'bg-purple-100 text-purple-700 border-purple-300 font-semibold'
-    }
-
-    // Fallback for any unexpected status
-    const style = (status in statusStyles) ? statusStyles[status as keyof typeof statusStyles] : statusStyles.alege;
-
-    return `${baseClasses} ${sizeClasses[size]} ${style}`
+    
+    // Use dynamic color from database
+    const colorClass = getColorClass(status)
+    return `${baseClasses} ${sizeClasses} ${colorClass} font-semibold`
   }
-
-  // Get display text for status
+  
   const getStatusText = () => {
-    switch (status) {
-      // ✅ NEW: Added display text for 'Alege'
-      case 'alege': return 'Alege'
-      case 'off': return 'OFF'
-      case 'CO': return 'CO'
-      case 'CM': return 'CM'
-      case 'dispensa': return 'D'
-      default: return 'N/A'
+    if (status === 'alege') {
+      return 'Alege'
     }
+    
+    // Use dynamic display name from database
+    const displayName = getDisplayName(status)
+    
+    // Shorten some common names for display
+    if (status === 'dispensa') {
+      return 'D'
+    }
+    
+    if (status === 'off') {
+      return 'Off'
+    }
+    
+    return displayName
   }
-
-  // Get tooltip text for better user understanding
+  
   const getTooltipText = () => {
-    switch (status) {
-      // ✅ NEW: Added tooltip for 'Alege'
-      case 'alege': return 'Selectați un status'
-      case 'off': return 'Day off - Click to change status'
-      case 'CO': return 'Concediu Odihna (Vacation) - Click to cycle'
-      case 'CM': return 'Concediu Medical (Medical Leave) - Click to cycle'
-      case 'dispensa': return 'Dispensa (Dispensation) - Click to cycle'
-      default: return 'Click to change status'
+    if (status === 'alege') {
+      return 'Selectați un status'
     }
+    
+    // Use full display name for tooltip
+    return `${getDisplayName(status)} - Click to change status`
   }
 
   return (

@@ -1,3 +1,4 @@
+// components/timesheets/TimesheetControls.tsx - Fixed with store validation
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -29,7 +30,14 @@ export function TimesheetControls({
   isSaving
 }: TimesheetControlsProps) {
   const { profile } = useAuth()
-  const { employees, isLoading: loadingEmployees, refetch: refetchEmployees } = useEmployees()
+  const { 
+    employees, 
+    isLoading: loadingEmployees, 
+    refetch: refetchEmployees,
+    hasStoreSelected 
+  } = useEmployees({
+    storeId: timesheetData.storeId // Pass selected store ID to fetch only those employees
+  })
   
   const [stores, setStores] = useState<Store[]>([])
   const [loadingStores, setLoadingStores] = useState(true)
@@ -84,9 +92,7 @@ export function TimesheetControls({
     }
 
     fetchStores()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile])
-
+  }, [profile, timesheetData.storeId, onUpdate])
 
   const handlePeriodChange = (field: 'startDate' | 'endDate', value: string) => {
     const updates: Partial<TimesheetGridData> = {
@@ -101,11 +107,17 @@ export function TimesheetControls({
   }
 
   const handleStoreChange = (storeId: string) => {
+    console.log('TimesheetControls: Store changed to:', storeId)
     setSelectedStoreId(storeId)
-    onUpdate({ storeId: storeId, entries: [] })
+    // Clear employees when store changes to force re-fetch
+    setSelectedEmployeeIds([])
+    onUpdate({ 
+      storeId: storeId, 
+      entries: [] // Clear existing entries when store changes
+    })
   }
 
- const handleEmployeeSelection = (employeeIds: string[]) => {
+  const handleEmployeeSelection = (employeeIds: string[]) => {
     const selectedEmployees = employees.filter(emp => employeeIds.includes(emp.id))
     
     if (selectedEmployees.length === 0) {
@@ -135,7 +147,6 @@ export function TimesheetControls({
           startTime: '',
           endTime: '',
           hours: 0,
-          // ✅ FIX: ALWAYS use 'alege' as default status consistently
           status: 'alege' as DayStatus,
           notes: ''
         }
@@ -166,7 +177,6 @@ export function TimesheetControls({
           startTime: '',
           endTime: '',
           hours: 0,
-          // ✅ FIX: Default status is now 'alege'
           status: 'alege' as DayStatus,
           notes: ''
         }
@@ -198,7 +208,7 @@ export function TimesheetControls({
           />
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
-              Store
+              Store *
             </label>
             {loadingStores ? (
               <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>
@@ -235,7 +245,7 @@ export function TimesheetControls({
               variant="outline"
               size="sm"
               onClick={() => setShowAddEmployee(true)}
-              disabled={loadingEmployees}
+              disabled={loadingEmployees || !selectedStoreId}
             >
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -253,10 +263,20 @@ export function TimesheetControls({
           />
         )}
         
-        {loadingEmployees ? (
+        {!hasStoreSelected ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+            <div className="text-blue-800">
+              <svg className="w-8 h-8 mx-auto mb-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-6m-2 0H3" />
+              </svg>
+              <p className="text-sm font-medium">Select a store above to view employees</p>
+              <p className="text-xs mt-1">Employees will be loaded only for the selected store</p>
+            </div>
+          </div>
+        ) : loadingEmployees ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-sm text-gray-600">Loading employees...</span>
+            <span className="ml-2 text-sm text-gray-600">Loading employees for selected store...</span>
           </div>
         ) : (
           <EmployeeSelector
@@ -264,6 +284,7 @@ export function TimesheetControls({
             selectedIds={selectedEmployeeIds}
             onSelectionChange={handleEmployeeSelection}
             maxHeight="150px"
+            storeId={selectedStoreId}
           />
         )}
       </div>
@@ -288,7 +309,7 @@ export function TimesheetControls({
                 variant="outline"
                 size="sm"
                 onClick={() => handleEmployeeSelection(employees.map(emp => emp.id))}
-                disabled={loadingEmployees}
+                disabled={loadingEmployees || !selectedStoreId}
               >
                 Select All
               </Button>
@@ -304,16 +325,6 @@ export function TimesheetControls({
           </div>
         </div>
       )}
-
-      <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-        <h4 className="text-sm font-medium text-gray-800 mb-2">How to Use the Grid</h4>
-        <div className="text-xs text-gray-600 space-y-1">
-          <p>• <strong>Time Intervals:</strong> Double-click cells and enter time like "10-12" or "9:30-17:30" - hours calculate automatically</p>
-          <p>• <strong>Status Changes:</strong> Click status badges to cycle: Off → CO (Vacation) → CM (Medical) → D (Dispensation)</p>
-          <p>• <strong>Comments:</strong> Right-click any cell to add notes - orange dots show cells with comments</p>
-          <p>• <strong>Navigation:</strong> Use Tab/Enter to move between cells, Esc to cancel editing</p>
-        </div>
-      </div>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+// hooks/data/useEmployees.ts - Optimized to fetch only selected store employees
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
@@ -20,20 +21,28 @@ export interface EmployeeWithDetails extends Employee {
   }
 }
 
-export function useEmployees() {
+interface UseEmployeesOptions {
+  storeId?: string // Required store filter for efficient fetching
+}
+
+export function useEmployees(options: UseEmployeesOptions = {}) {
   const { user, profile } = useAuth()
   const permissions = usePermissions()
+  const { storeId } = options
 
-  // Query to fetch employees with role-based filtering
+  // Determine the effective store ID to fetch employees for
+  const effectiveStoreId = storeId || (profile?.role === 'STORE_MANAGER' ? profile.store_id : '')
+  
+  // Query to fetch employees - only when store is selected
   const {
     data: employees = [],
     isLoading,
     error,
     refetch
   } = useQuery({
-    queryKey: ['employees', profile?.role, profile?.zone_id, profile?.store_id],
+    queryKey: ['employees', effectiveStoreId, profile?.role, profile?.zone_id],
     queryFn: async (): Promise<EmployeeWithDetails[]> => {
-      console.log('useEmployees: Fetching employees...')
+      console.log('useEmployees: Fetching employees for store:', effectiveStoreId)
       
       let query = supabase
         .from('employees')
@@ -44,13 +53,22 @@ export function useEmployees() {
         `)
         .order('full_name', { ascending: true })
 
-      // Apply role-based filtering (similar to timesheet filtering)
-      if (profile?.role === 'STORE_MANAGER' && profile.store_id) {
-        query = query.eq('store_id', profile.store_id)
+      // Always filter by store if we have one
+      if (effectiveStoreId && effectiveStoreId.trim() !== '') {
+        query = query.eq('store_id', effectiveStoreId)
+        console.log('useEmployees: Filtering by store_id:', effectiveStoreId)
       } else if (profile?.role === 'ASM' && profile.zone_id) {
+        // ASM can see all employees in their zone (multiple stores)
         query = query.eq('zone_id', profile.zone_id)
+        console.log('useEmployees: Filtering by zone_id:', profile.zone_id)
+      } else if (profile?.role === 'HR') {
+        // HR can see all employees, but we still want to filter by store when one is selected
+        console.log('useEmployees: HR - no additional filtering')
+      } else {
+        // No store selected and not ASM/HR - return empty array
+        console.log('useEmployees: No store selected, returning empty array')
+        return []
       }
-      // HR can see all employees (no additional filter)
 
       const { data, error } = await query
 
@@ -63,7 +81,7 @@ export function useEmployees() {
       return data || []
     },
     enabled: !!user && !!profile && permissions.canViewEmployees,
-    staleTime: 1000 * 60 * 10, // 10 minutes (employees don't change often)
+    staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1
   })
 
@@ -75,6 +93,7 @@ export function useEmployees() {
     canView: permissions.canViewEmployees,
     canCreate: permissions.canCreateEmployees,
     canEdit: permissions.canEditEmployees,
-    canDelete: permissions.canDeleteEmployees
+    canDelete: permissions.canDeleteEmployees,
+    hasStoreSelected: !!effectiveStoreId
   }
 }
