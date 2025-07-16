@@ -1,4 +1,4 @@
-// types/database.ts - Fixed with profiles table
+// types/database.ts - Updated with delegation table
 export type Json =
   | string
   | number
@@ -8,15 +8,16 @@ export type Json =
   | Json[]
 
 export type UserRole = 'HR' | 'ASM' | 'STORE_MANAGER'
+export type DelegationStatus = 'active' | 'expired' | 'revoked' | 'pending'
 
-// ✅ FIX: Updated DailyEntry to match our actual usage
+// Updated DailyEntry to match our actual usage
 export type DailyEntry = {
   date: string;
   hours?: string | null;
   status?: 'work' | 'off' | 'CO' | 'other' | null;
 }
 
-// ✅ NEW: Type for our grid-based daily entries (JSON object with date keys)
+// Type for our grid-based daily entries (JSON object with date keys)
 export type GridDailyEntries = {
   _metadata?: {
     employeeName: string;
@@ -36,7 +37,6 @@ export type GridDailyEntries = {
 export interface Database {
   public: {
     Tables: {
-      // ✅ FIX: Added missing profiles table
       profiles: {
         Row: {
           id: string
@@ -95,7 +95,6 @@ export interface Database {
           zone_id?: string
         }
       }
-      // ✅ FIX: Added missing stores table
       stores: {
         Row: {
           id: string
@@ -115,7 +114,6 @@ export interface Database {
           zone_id?: string
         }
       }
-      // ✅ FIX: Added missing zones table
       zones: {
         Row: {
           id: string
@@ -132,6 +130,62 @@ export interface Database {
           name?: string
         }
       }
+      // NEW: Employee Delegations table
+      employee_delegations: {
+        Row: {
+          id: string
+          employee_id: string
+          from_store_id: string
+          to_store_id: string
+          from_zone_id: string
+          to_zone_id: string
+          delegated_by: string
+          valid_from: string
+          valid_until: string
+          status: DelegationStatus
+          auto_return: boolean
+          extension_count: number
+          notes: string | null
+          created_at: string
+          updated_at: string
+          expired_at: string | null
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          from_store_id: string
+          to_store_id: string
+          from_zone_id: string
+          to_zone_id: string
+          delegated_by: string
+          valid_from: string
+          valid_until: string
+          status?: DelegationStatus
+          auto_return?: boolean
+          extension_count?: number
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          expired_at?: string | null
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          from_store_id?: string
+          to_store_id?: string
+          from_zone_id?: string
+          to_zone_id?: string
+          delegated_by?: string
+          valid_from?: string
+          valid_until?: string
+          status?: DelegationStatus
+          auto_return?: boolean
+          extension_count?: number
+          notes?: string | null
+          updated_at?: string
+          expired_at?: string | null
+        }
+      }
       timesheets: {
         Row: {
           id: string
@@ -146,7 +200,7 @@ export interface Database {
           created_at: string
           updated_at: string
           daily_entries: DailyEntry[] | null
-          employee_name: string | null // ✅ Keep this for reporting
+          employee_name: string | null
         }
         Insert: {
           id?: string
@@ -159,7 +213,7 @@ export interface Database {
           notes?: string | null
           created_by?: string | null
           daily_entries?: DailyEntry[] | null
-          employee_name?: string | null // ✅ Keep this for reporting
+          employee_name?: string | null
         }
         Update: {
           id?: string
@@ -171,7 +225,7 @@ export interface Database {
           total_hours?: number
           notes?: string | null
           daily_entries?: DailyEntry[] | null
-          employee_name?: string | null // ✅ Keep this for reporting
+          employee_name?: string | null
         }
       }
     }
@@ -183,6 +237,7 @@ export interface Database {
     }
     Enums: {
       user_role: UserRole
+      delegation_status: DelegationStatus
     }
     CompositeTypes: {
       [_ in never]: never
