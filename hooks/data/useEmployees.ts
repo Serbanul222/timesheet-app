@@ -1,4 +1,4 @@
-// hooks/data/useEmployees.ts - Optimized to fetch only selected store employees
+// hooks/data/useEmployees.ts - Updated with delegation support
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
@@ -9,7 +9,7 @@ import { Database } from '@/types/database'
 
 type Employee = Database['public']['Tables']['employees']['Row']
 
-// Extended employee type with related data
+// Extended employee type with related data and delegation info
 export interface EmployeeWithDetails extends Employee {
   store?: {
     id: string
@@ -19,16 +19,25 @@ export interface EmployeeWithDetails extends Employee {
     id: string
     name: string
   }
+  delegation?: {
+    id: string
+    from_store_id: string
+    from_store_name: string
+    valid_until: string
+    delegated_by_name: string
+  }
+  isDelegated?: boolean
 }
 
 interface UseEmployeesOptions {
   storeId?: string // Required store filter for efficient fetching
+  includeDelegated?: boolean // Include employees delegated to this store
 }
 
 export function useEmployees(options: UseEmployeesOptions = {}) {
   const { user, profile } = useAuth()
   const permissions = usePermissions()
-  const { storeId } = options
+  const { storeId, includeDelegated = true } = options
 
   // Determine the effective store ID to fetch employees for
   const effectiveStoreId = storeId || (profile?.role === 'STORE_MANAGER' ? profile.store_id : '')
@@ -40,53 +49,115 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
     error,
     refetch
   } = useQuery({
-    queryKey: ['employees', effectiveStoreId, profile?.role, profile?.zone_id],
+    queryKey: ['employees', effectiveStoreId, profile?.role, profile?.zone_id, includeDelegated],
     queryFn: async (): Promise<EmployeeWithDetails[]> => {
-      console.log('useEmployees: Fetching employees for store:', effectiveStoreId)
+      console.log('useEmployees: Fetching employees for store:', effectiveStoreId, 'includeDelegated:', includeDelegated)
       
-      let query = supabase
-        .from('employees')
-        .select(`
-          *,
-          store:stores(id, name),
-          zone:zones(id, name)
-        `)
-        .order('full_name', { ascending: true })
+      let regularEmployees: EmployeeWithDetails[] = []
+      let delegatedEmployees: EmployeeWithDetails[] = []
 
-      // Always filter by store if we have one
+      // 1. Fetch regular employees (assigned to this store)
       if (effectiveStoreId && effectiveStoreId.trim() !== '') {
-        query = query.eq('store_id', effectiveStoreId)
-        console.log('useEmployees: Filtering by store_id:', effectiveStoreId)
-      } else if (profile?.role === 'ASM' && profile.zone_id) {
-        // ASM can see all employees in their zone (multiple stores)
-        query = query.eq('zone_id', profile.zone_id)
-        console.log('useEmployees: Filtering by zone_id:', profile.zone_id)
-      } else if (profile?.role === 'HR') {
-        // HR can see all employees, but we still want to filter by store when one is selected
-        console.log('useEmployees: HR - no additional filtering')
-      } else {
-        // No store selected and not ASM/HR - return empty array
-        console.log('useEmployees: No store selected, returning empty array')
-        return []
+        let query = supabase
+          .from('employees')
+          .select(`
+            *,
+            store:stores(id, name),
+            zone:zones(id, name)
+          `)
+          .eq('store_id', effectiveStoreId)
+          .order('full_name', { ascending: true })
+
+        const { data, error } = await query
+
+        if (error) {
+          console.error('useEmployees: Fetch error:', error)
+          throw error
+        }
+
+        regularEmployees = (data || []).map(emp => ({
+          ...emp,
+          isDelegated: false
+        }))
       }
 
-      const { data, error } = await query
+      // 2. Fetch delegated employees (if includeDelegated is true)
+      if (includeDelegated && effectiveStoreId && effectiveStoreId.trim() !== '') {
+        const now = new Date().toISOString()
+        
+        const { data: delegationsData, error: delegationError } = await supabase
+          .from('employee_delegations')
+          .select(`
+            id,
+            employee_id,
+            from_store_id,
+            valid_until,
+            employee:employees(
+              *,
+              store:stores(id, name),
+              zone:zones(id, name)
+            ),
+            from_store:stores!employee_delegations_from_store_id_fkey(id, name),
+            delegated_by_user:profiles!employee_delegations_delegated_by_fkey(id, full_name)
+          `)
+          .eq('to_store_id', effectiveStoreId)
+          .eq('status', 'active')
+          .lte('valid_from', now)
+          .gte('valid_until', now)
 
-      if (error) {
-        console.error('useEmployees: Fetch error:', error)
-        throw error
+        if (delegationError) {
+          console.error('useEmployees: Delegation fetch error:', delegationError)
+          // Don't throw error for delegations, just log and continue
+        } else if (delegationsData) {
+          delegatedEmployees = delegationsData
+            .filter(delegation => delegation.employee)
+            .map(delegation => ({
+              ...delegation.employee,
+              delegation: {
+                id: delegation.id,
+                from_store_id: delegation.from_store_id,
+                from_store_name: delegation.from_store?.name || 'Unknown Store',
+                valid_until: delegation.valid_until,
+                delegated_by_name: delegation.delegated_by_user?.full_name || 'Unknown'
+              },
+              isDelegated: true
+            }))
+        }
       }
 
-      console.log('useEmployees: Fetched', data?.length || 0, 'employees')
-      return data || []
+      // 3. Apply role-based filtering for additional security
+      let allEmployees = [...regularEmployees, ...delegatedEmployees]
+
+      if (profile?.role === 'ASM' && profile.zone_id) {
+        // ASM can see employees in their zone (including delegated ones)
+        allEmployees = allEmployees.filter(emp => 
+          emp.zone_id === profile.zone_id || emp.delegation
+        )
+      } else if (profile?.role === 'STORE_MANAGER' && profile.store_id) {
+        // Store managers can see their employees + employees delegated to their store
+        allEmployees = allEmployees.filter(emp => 
+          emp.store_id === profile.store_id || 
+          (emp.delegation && effectiveStoreId === profile.store_id)
+        )
+      }
+
+      console.log('useEmployees: Fetched', regularEmployees.length, 'regular and', delegatedEmployees.length, 'delegated employees')
+      return allEmployees
+
     },
     enabled: !!user && !!profile && permissions.canViewEmployees,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 2, // 2 minutes (shorter for delegation updates)
     retry: 1
   })
 
+  // Separate regular and delegated employees for display
+  const regularEmployees = employees.filter(emp => !emp.isDelegated)
+  const delegatedEmployees = employees.filter(emp => emp.isDelegated)
+
   return {
     employees,
+    regularEmployees,
+    delegatedEmployees,
     isLoading,
     error,
     refetch,
@@ -94,6 +165,11 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
     canCreate: permissions.canCreateEmployees,
     canEdit: permissions.canEditEmployees,
     canDelete: permissions.canDeleteEmployees,
-    hasStoreSelected: !!effectiveStoreId
+    hasStoreSelected: !!effectiveStoreId,
+    
+    // Helper functions
+    getEmployeeById: (id: string) => employees.find(emp => emp.id === id),
+    isDelegatedEmployee: (id: string) => employees.find(emp => emp.id === id)?.isDelegated || false,
+    getDelegationInfo: (id: string) => employees.find(emp => emp.id === id)?.delegation
   }
 }

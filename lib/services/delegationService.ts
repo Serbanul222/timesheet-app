@@ -1,4 +1,4 @@
-// lib/services/delegationService.ts
+// lib/services/delegationService.ts - Simplified for current schema
 import { supabase } from '@/lib/supabase/client'
 import { Database } from '@/types/database'
 import { 
@@ -16,7 +16,7 @@ type Store = Database['public']['Tables']['stores']['Row']
 type Zone = Database['public']['Tables']['zones']['Row']
 
 /**
- * Service for managing employee delegations
+ * Service for managing employee delegations - Simplified version
  */
 export class DelegationService {
   
@@ -38,13 +38,11 @@ export class DelegationService {
       // Get user and employee data for delegation creation
       const { user, employee, fromStore, toStore } = await this.getDelegationContext(request, userId)
       
-      // Create delegation record
+      // Create delegation record - simplified without zone fields for now
       const delegationData = {
         employee_id: request.employee_id,
         from_store_id: employee.store_id,
         to_store_id: request.to_store_id,
-        from_zone_id: fromStore.zone_id,
-        to_zone_id: toStore.zone_id,
         delegated_by: userId,
         valid_from: request.valid_from,
         valid_until: request.valid_until,
@@ -76,7 +74,7 @@ export class DelegationService {
   }
   
   /**
-   * Get delegations with optional filters
+   * Get delegations with optional filters - simplified query
    */
   static async getDelegations(filters: DelegationFilters = {}): Promise<DelegationWithDetails[]> {
     try {
@@ -87,8 +85,6 @@ export class DelegationService {
           employee:employees(id, full_name, position, employee_code),
           from_store:stores!employee_delegations_from_store_id_fkey(id, name),
           to_store:stores!employee_delegations_to_store_id_fkey(id, name),
-          from_zone:zones!employee_delegations_from_zone_id_fkey(id, name),
-          to_zone:zones!employee_delegations_to_zone_id_fkey(id, name),
           delegated_by_user:profiles!employee_delegations_delegated_by_fkey(id, full_name, role)
         `)
         .order('created_at', { ascending: false })
@@ -144,8 +140,6 @@ export class DelegationService {
           employee:employees(id, full_name, position, employee_code),
           from_store:stores!employee_delegations_from_store_id_fkey(id, name),
           to_store:stores!employee_delegations_to_store_id_fkey(id, name),
-          from_zone:zones!employee_delegations_from_zone_id_fkey(id, name),
-          to_zone:zones!employee_delegations_to_zone_id_fkey(id, name),
           delegated_by_user:profiles!employee_delegations_delegated_by_fkey(id, full_name, role)
         `)
         .eq('employee_id', employeeId)
@@ -221,42 +215,6 @@ export class DelegationService {
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to revoke delegation' 
-      }
-    }
-  }
-  
-  /**
-   * Process expired delegations (mark as expired)
-   */
-  static async processExpiredDelegations(): Promise<{ processed: number; error?: string }> {
-    try {
-      const now = new Date().toISOString()
-      
-      const { data, error } = await supabase
-        .from('employee_delegations')
-        .update({ 
-          status: 'expired',
-          expired_at: now,
-          updated_at: now
-        })
-        .eq('status', 'active')
-        .lt('valid_until', now)
-        .select('id')
-      
-      if (error) {
-        throw new Error(`Failed to process expired delegations: ${error.message}`)
-      }
-      
-      const processed = data?.length || 0
-      console.log('DelegationService: Processed expired delegations:', processed)
-      
-      return { processed }
-      
-    } catch (error) {
-      console.error('DelegationService: Process expired delegations error:', error)
-      return { 
-        processed: 0,
-        error: error instanceof Error ? error.message : 'Failed to process expired delegations' 
       }
     }
   }
@@ -385,21 +343,38 @@ export class DelegationService {
     userId: string
   ): Promise<DelegationValidationResult> {
     try {
-      const context = await this.getDelegationContext(request, userId)
+      // Basic client-side validation first
+      if (!request.employee_id || !request.to_store_id || !request.valid_from || !request.valid_until) {
+        return { isValid: false, error: 'Missing required fields', canDelegate: false }
+      }
       
-      // Get existing active delegations for conflict checking
-      const existingDelegations = await this.getDelegations({
+      const startDate = new Date(request.valid_from + 'T00:00:00') // Fix timezone issue
+      const endDate = new Date(request.valid_until + 'T23:59:59')   // Fix timezone issue
+      const now = new Date()
+      
+      // Set now to start of day for comparison
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+      
+      if (startDay < today) {
+        return { isValid: false, error: 'Start date cannot be in the past', canDelegate: false }
+      }
+      
+      if (endDate <= startDate) {
+        return { isValid: false, error: 'End date must be after start date', canDelegate: false }
+      }
+      
+      // Check for existing active delegations
+      const existing = await this.getDelegations({
         employee_id: request.employee_id,
         status: 'active'
       })
       
-      const validationContext = {
-        ...context,
-        existingDelegations,
-        request
+      if (existing.length > 0) {
+        return { isValid: false, error: 'Employee already has an active delegation', canDelegate: false }
       }
       
-      return DelegationValidationRules.validateDelegationRequest(validationContext)
+      return { isValid: true, canDelegate: true }
       
     } catch (error) {
       console.error('DelegationService: Validation error:', error)
@@ -422,8 +397,6 @@ export class DelegationService {
     employee: Employee
     fromStore: Store
     toStore: Store
-    fromZone: Zone
-    toZone: Zone
   }> {
     try {
       // Get user
@@ -470,35 +443,11 @@ export class DelegationService {
         throw new Error(`To store not found: ${toStoreError.message}`)
       }
       
-      // Get from zone
-      const { data: fromZone, error: fromZoneError } = await supabase
-        .from('zones')
-        .select('*')
-        .eq('id', fromStore.zone_id)
-        .single()
-      
-      if (fromZoneError) {
-        throw new Error(`From zone not found: ${fromZoneError.message}`)
-      }
-      
-      // Get to zone
-      const { data: toZone, error: toZoneError } = await supabase
-        .from('zones')
-        .select('*')
-        .eq('id', toStore.zone_id)
-        .single()
-      
-      if (toZoneError) {
-        throw new Error(`To zone not found: ${toZoneError.message}`)
-      }
-      
       return {
         user,
         employee,
         fromStore,
-        toStore,
-        fromZone,
-        toZone
+        toStore
       }
       
     } catch (error) {

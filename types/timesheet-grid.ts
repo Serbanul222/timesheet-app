@@ -1,4 +1,6 @@
 // types/timesheet-grid.ts - Updated with validation support
+import { RowData } from '@tanstack/react-table';
+import { Timesheet, Profile, AbsenceType, Delegation } from './database';
 
 // ✅ UPDATED: Dynamic DayStatus that supports database-driven absence types
 export type DayStatus = 'alege' | string // 'alege' + any absence type code from database
@@ -10,6 +12,33 @@ export interface DayData {
   hours: number      // calculated from interval
   status: DayStatus
   notes: string
+}
+
+export interface TimesheetCellData {
+  value: string;
+  isWeekend: boolean;
+  isAbsence: boolean;
+  isHoliDay: boolean;
+  isDelegated: boolean; // Ensure this is always a boolean
+}
+
+export interface TimesheetGridOptions {
+  canEdit: boolean;
+  isSubmitting: boolean;
+}
+
+export interface TimesheetGridRowData extends RowData {
+  profile: Profile;
+  timesheet: Timesheet;
+  [key: string]: any;
+}
+
+export interface TimesheetGridContext {
+  options: TimesheetGridOptions;
+  absenceTypes: AbsenceType[];
+  updateData: (rowIndex: number, columnId: string, value: any) => void;
+  getValidationMessage: (rowIndex: number, columnId: string) => string | null;
+  delegations: Delegation[];
 }
 
 export interface TimesheetEntry {

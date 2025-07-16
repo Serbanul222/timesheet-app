@@ -1,3 +1,4 @@
+// hooks/auth/usePermissions.ts - Updated with delegation permissions
 'use client'
 
 import { useMemo } from 'react'
@@ -18,6 +19,14 @@ interface Permissions {
   canEditEmployees: boolean
   canDeleteEmployees: boolean
   canViewEmployees: boolean
+  
+  // NEW: Delegation permissions
+  canCreateDelegation: boolean
+  canRevokeDelegation: boolean
+  canExtendDelegation: boolean
+  canViewDelegations: boolean
+  canDelegateAcrossZones: boolean
+  canApproveDelegations: boolean
 }
 
 export function usePermissions(): Permissions {
@@ -42,6 +51,14 @@ export function usePermissions(): Permissions {
       canDeleteTimesheets: false,
       canExportTimesheets: false,
       canDeleteEmployees: false,
+      
+      // Default delegation permissions
+      canCreateDelegation: false,
+      canRevokeDelegation: false,
+      canExtendDelegation: false,
+      canViewDelegations: false,
+      canDelegateAcrossZones: false,
+      canApproveDelegations: false,
     }
 
     if (!role) {
@@ -67,6 +84,14 @@ export function usePermissions(): Permissions {
           canDeleteTimesheets: true,
           canExportTimesheets: true,
           canDeleteEmployees: true,
+          
+          // HR delegation permissions
+          canCreateDelegation: true,
+          canRevokeDelegation: true,
+          canExtendDelegation: true,
+          canViewDelegations: true,
+          canDelegateAcrossZones: true,
+          canApproveDelegations: true,
         }
 
       case 'ASM':
@@ -75,6 +100,14 @@ export function usePermissions(): Permissions {
           canDeleteTimesheets: true,
           canExportTimesheets: true,
           canDeleteEmployees: true,
+          
+          // ASM delegation permissions
+          canCreateDelegation: true,
+          canRevokeDelegation: true,
+          canExtendDelegation: true,
+          canViewDelegations: true,
+          canDelegateAcrossZones: false, // Only within their zone
+          canApproveDelegations: true, // Can approve store manager requests
         }
 
       case 'STORE_MANAGER':
@@ -83,6 +116,14 @@ export function usePermissions(): Permissions {
           canDeleteTimesheets: false, // Store managers can't delete
           canExportTimesheets: false,
           canDeleteEmployees: false,
+          
+          // Store Manager delegation permissions
+          canCreateDelegation: true,
+          canRevokeDelegation: true,
+          canExtendDelegation: false, // Need ASM/HR approval for extensions
+          canViewDelegations: true,
+          canDelegateAcrossZones: false, // Only within same zone
+          canApproveDelegations: false,
         }
 
       default:

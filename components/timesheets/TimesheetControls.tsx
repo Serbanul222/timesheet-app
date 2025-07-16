@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetControls.tsx - Fixed with store validation
+// components/timesheets/TimesheetControls.tsx - Simplified with extracted components
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { EmployeeSelector } from '@/components/employees/EmployeeSelector'
 import { EmployeeQuickAdd } from '@/components/employees/EmployeeQuickAdd'
+import { EmployeeDelegationPanel } from './EmployeeDelegationPanel'
+import { DelegationInfoPanel } from './DelegationInfoPanel'
+import { TimesheetSummaryPanel } from './TimesheetSummaryPanel'
 import { useEmployees } from '@/hooks/data/useEmployees'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { supabase } from '@/lib/supabase/client'
@@ -32,22 +35,25 @@ export function TimesheetControls({
   const { profile } = useAuth()
   const { 
     employees, 
+    regularEmployees,
+    delegatedEmployees,
     isLoading: loadingEmployees, 
     refetch: refetchEmployees,
     hasStoreSelected 
   } = useEmployees({
-    storeId: timesheetData.storeId // Pass selected store ID to fetch only those employees
+    storeId: timesheetData.storeId,
+    includeDelegated: true
   })
   
   const [stores, setStores] = useState<Store[]>([])
   const [loadingStores, setLoadingStores] = useState(true)
   const [showAddEmployee, setShowAddEmployee] = useState(false)
-
   const [selectedStoreId, setSelectedStoreId] = useState(timesheetData.storeId || '')
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>(
     timesheetData.entries.map(entry => entry.employeeId)
   )
 
+  // Sync with timesheet data
   useEffect(() => {
     setSelectedStoreId(timesheetData.storeId || '')
   }, [timesheetData.storeId])
@@ -59,6 +65,7 @@ export function TimesheetControls({
     }
   }, [timesheetData.entries, selectedEmployeeIds])
 
+  // Fetch stores
   useEffect(() => {
     const fetchStores = async () => {
       if (!profile) return
@@ -74,7 +81,7 @@ export function TimesheetControls({
         }
 
         const { data, error } = await query
-        if (error) throw error;
+        if (error) throw error
 
         if (data) {
           setStores(data)
@@ -107,14 +114,9 @@ export function TimesheetControls({
   }
 
   const handleStoreChange = (storeId: string) => {
-    console.log('TimesheetControls: Store changed to:', storeId)
     setSelectedStoreId(storeId)
-    // Clear employees when store changes to force re-fetch
     setSelectedEmployeeIds([])
-    onUpdate({ 
-      storeId: storeId, 
-      entries: [] // Clear existing entries when store changes
-    })
+    onUpdate({ storeId: storeId, entries: [] })
   }
 
   const handleEmployeeSelection = (employeeIds: string[]) => {
@@ -191,9 +193,10 @@ export function TimesheetControls({
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+      {/* Period & Store Selection */}
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Period & Setup</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
             label="Start Date"
             type="date"
@@ -207,9 +210,7 @@ export function TimesheetControls({
             onChange={(e) => handlePeriodChange('endDate', e.target.value)}
           />
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-1">
-              Store *
-            </label>
+            <label className="block text-sm font-medium text-gray-900 mb-1">Store *</label>
             {loadingStores ? (
               <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>
             ) : (
@@ -221,9 +222,7 @@ export function TimesheetControls({
               >
                 <option value="">Select store...</option>
                 {stores.map((store) => (
-                  <option key={store.id} value={store.id}>
-                    {store.name}
-                  </option>
+                  <option key={store.id} value={store.id}>{store.name}</option>
                 ))}
               </select>
             )}
@@ -231,11 +230,17 @@ export function TimesheetControls({
         </div>
       </div>
 
+      {/* Employee Selection */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <label className="block text-sm font-medium text-gray-900">
-            Select Employees
-          </label>
+          <div className="flex items-center space-x-4">
+            <label className="block text-sm font-medium text-gray-900">Select Employees</label>
+            {delegatedEmployees.length > 0 && (
+              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                {delegatedEmployees.length} delegated employee{delegatedEmployees.length !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
           <div className="flex items-center space-x-3">
             <div className="text-sm text-gray-600">
               {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
@@ -276,7 +281,7 @@ export function TimesheetControls({
         ) : loadingEmployees ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-sm text-gray-600">Loading employees for selected store...</span>
+            <span className="ml-2 text-sm text-gray-600">Loading employees...</span>
           </div>
         ) : (
           <EmployeeSelector
@@ -289,42 +294,30 @@ export function TimesheetControls({
         )}
       </div>
 
-      {selectedEmployeeIds.length > 0 && selectedStoreId && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="text-sm font-medium text-blue-800">Timesheet Summary</h4>
-              <div className="text-sm text-blue-700 mt-1">
-                <span className="font-medium">{selectedEmployeeIds.length}</span> employees • 
-                <span className="font-medium ml-1">
-                  {new Date(timesheetData.startDate).toLocaleDateString()} - {new Date(timesheetData.endDate).toLocaleDateString()}
-                </span> • 
-                <span className="font-medium ml-1">
-                  {stores.find(s => s.id === selectedStoreId)?.name || 'Store selected'}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEmployeeSelection(employees.map(emp => emp.id))}
-                disabled={loadingEmployees || !selectedStoreId}
-              >
-                Select All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEmployeeSelection([])}
-                disabled={selectedEmployeeIds.length === 0}
-              >
-                Clear All
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delegation Panel */}
+      <EmployeeDelegationPanel
+        employees={employees}
+        selectedEmployeeIds={selectedEmployeeIds}
+        regularEmployees={regularEmployees}
+        delegatedEmployees={delegatedEmployees}
+      />
+
+      {/* Summary Panel */}
+      <TimesheetSummaryPanel
+        selectedEmployeeIds={selectedEmployeeIds}
+        selectedStoreId={selectedStoreId}
+        timesheetData={timesheetData}
+        stores={stores}
+        regularEmployees={regularEmployees}
+        delegatedEmployees={delegatedEmployees}
+        employees={employees}
+        onSelectAll={() => handleEmployeeSelection(employees.map(emp => emp.id))}
+        onClearAll={() => handleEmployeeSelection([])}
+        isLoadingEmployees={loadingEmployees}
+      />
+
+      {/* Delegation Info */}
+      <DelegationInfoPanel delegatedEmployees={delegatedEmployees} />
     </div>
   )
 }
