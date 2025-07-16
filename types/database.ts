@@ -1,3 +1,4 @@
+// types/database.ts - Fixed with profiles table
 export type Json =
   | string
   | number
@@ -8,17 +9,64 @@ export type Json =
 
 export type UserRole = 'HR' | 'ASM' | 'STORE_MANAGER'
 
-// Define the structure of a single entry in our new column
+// ✅ FIX: Updated DailyEntry to match our actual usage
 export type DailyEntry = {
   date: string;
   hours?: string | null;
   status?: 'work' | 'off' | 'CO' | 'other' | null;
 }
 
+// ✅ NEW: Type for our grid-based daily entries (JSON object with date keys)
+export type GridDailyEntries = {
+  _metadata?: {
+    employeeName: string;
+    employeeId: string;
+    position?: string;
+    employeeCode?: string;
+    transformedAt: string;
+  };
+  [dateKey: string]: {
+    timeInterval: string;
+    hours: number;
+    status: string;
+    notes: string;
+  } | any; // Allow metadata object
+}
+
 export interface Database {
   public: {
     Tables: {
-      // ... other tables are unchanged
+      // ✅ FIX: Added missing profiles table
+      profiles: {
+        Row: {
+          id: string
+          email: string
+          full_name: string
+          role: UserRole
+          zone_id: string | null
+          store_id: string | null
+          created_at: string
+          updated_at?: string
+        }
+        Insert: {
+          id: string
+          email: string
+          full_name: string
+          role?: UserRole
+          zone_id?: string | null
+          store_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          full_name?: string
+          role?: UserRole
+          zone_id?: string | null
+          store_id?: string | null
+          updated_at?: string
+        }
+      }
       employees: {
         Row: {
           id: string
@@ -29,7 +77,60 @@ export interface Database {
           zone_id: string
           created_at: string
         }
-        // ... Insert and Update are unchanged
+        Insert: {
+          id?: string
+          full_name: string
+          position?: string | null
+          employee_code?: string | null
+          store_id: string
+          zone_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          position?: string | null
+          employee_code?: string | null
+          store_id?: string
+          zone_id?: string
+        }
+      }
+      // ✅ FIX: Added missing stores table
+      stores: {
+        Row: {
+          id: string
+          name: string
+          zone_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          zone_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          zone_id?: string
+        }
+      }
+      // ✅ FIX: Added missing zones table
+      zones: {
+        Row: {
+          id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+        }
       }
       timesheets: {
         Row: {
@@ -39,12 +140,13 @@ export interface Database {
           zone_id: string
           period_start: string
           period_end: string
-          total_hours: number // We'll keep this for now
+          total_hours: number
           notes: string | null
           created_by: string | null
           created_at: string
           updated_at: string
-          daily_entries: DailyEntry[] | null // Add the new column here
+          daily_entries: DailyEntry[] | null
+          employee_name: string | null // ✅ Keep this for reporting
         }
         Insert: {
           id?: string
@@ -56,7 +158,8 @@ export interface Database {
           total_hours?: number
           notes?: string | null
           created_by?: string | null
-          daily_entries?: DailyEntry[] | null // Add to Insert type
+          daily_entries?: DailyEntry[] | null
+          employee_name?: string | null // ✅ Keep this for reporting
         }
         Update: {
           id?: string
@@ -67,7 +170,8 @@ export interface Database {
           period_end?: string
           total_hours?: number
           notes?: string | null
-          daily_entries?: DailyEntry[] | null // Add to Update type
+          daily_entries?: DailyEntry[] | null
+          employee_name?: string | null // ✅ Keep this for reporting
         }
       }
     }

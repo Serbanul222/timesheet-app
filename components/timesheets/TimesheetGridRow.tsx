@@ -1,3 +1,4 @@
+// components/timesheets/TimesheetGridRow.tsx - Fixed consistent defaults
 'use client'
 
 import { TimesheetCell } from './TimesheetCell'
@@ -57,14 +58,17 @@ export function TimesheetGridRow({
       <div className="flex">
         {dateRange.map((date, index) => {
           const dateKey = date.toISOString().split('T')[0]
+          
+          // ✅ FIX: ALWAYS use 'alege' as default status consistently
           const dayData = entry.days[dateKey] || {
             timeInterval: '',
             startTime: '',
             endTime: '',
             hours: 0,
-            status: 'off' as DayStatus,
+            status: 'alege' as DayStatus, // ✅ CONSISTENT DEFAULT
             notes: ''
           }
+          
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           const isSelected = selectedCell?.employeeId === entry.employeeId && 
                            selectedCell?.date === dateKey

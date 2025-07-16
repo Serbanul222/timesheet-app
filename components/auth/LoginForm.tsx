@@ -1,14 +1,14 @@
- 'use client'
+// components/auth/LoginForm.tsx - Fixed with proper redirect
+'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { toast } from 'sonner'
 
-// Think of validation like input sanitization in Java - we're ensuring data integrity
 const loginSchema = z.object({
   email: z
     .string()
@@ -23,19 +23,23 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>
 
 interface LoginFormProps {
-  redirectTo?: string
   className?: string
 }
 
-export function LoginForm({ redirectTo = '/dashboard', className = '' }: LoginFormProps) {
+export function LoginForm({ className = '' }: LoginFormProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { signIn, loading, error, clearError } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // ✅ FIX: Get redirect URL from query params, default to /timesheets
+  const redirectTo = searchParams.get('redirectTo') || '/timesheets'
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
     reset
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -46,33 +50,44 @@ export function LoginForm({ redirectTo = '/dashboard', className = '' }: LoginFo
   })
 
   const onSubmit = async (data: LoginFormData) => {
+    if (isSubmitting) return
+    
+    setIsSubmitting(true)
     clearError()
     
     try {
+      console.log('LoginForm: Attempting sign in...')
       const result = await signIn(data.email, data.password)
       
       if (result.error) {
+        console.error('LoginForm: Sign in failed:', result.error)
         toast.error('Sign in failed', {
           description: result.error
         })
         return
       }
 
+      console.log('LoginForm: Sign in successful, redirecting to:', redirectTo)
       toast.success('Signed in successfully', {
         description: 'Welcome back!'
       })
       
-      router.push(redirectTo)
-      router.refresh()
+      // ✅ FIX: Add small delay to ensure auth state is updated
+      setTimeout(() => {
+        router.push(redirectTo)
+        router.refresh()
+      }, 100)
       
     } catch (err) {
+      console.error('LoginForm: Unexpected error:', err)
       toast.error('Sign in failed', {
         description: 'An unexpected error occurred'
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  // Like a Java method for handling input focus - clears errors when user starts typing
   const handleInputFocus = () => {
     if (error) clearError()
   }
@@ -103,10 +118,11 @@ export function LoginForm({ redirectTo = '/dashboard', className = '' }: LoginFo
             className={`
               w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
               placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 
-              focus:border-blue-500 transition-colors
+              focus:border-blue-500 transition-colors text-gray-900
               ${errors.email ? 'border-red-500 ring-1 ring-red-500' : ''}
             `}
             placeholder="john.doe@example.com"
+            disabled={isSubmitting || loading}
           />
           {errors.email && (
             <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
@@ -128,15 +144,17 @@ export function LoginForm({ redirectTo = '/dashboard', className = '' }: LoginFo
               className={`
                 w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm 
                 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 
-                focus:border-blue-500 transition-colors
+                focus:border-blue-500 transition-colors text-gray-900
                 ${errors.password ? 'border-red-500 ring-1 ring-red-500' : ''}
               `}
               placeholder="Enter your password"
+              disabled={isSubmitting || loading}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              disabled={isSubmitting || loading}
             >
               {showPassword ? (
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -189,6 +207,15 @@ export function LoginForm({ redirectTo = '/dashboard', className = '' }: LoginFo
           )}
         </button>
       </form>
+
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
+          <p>Redirect URL: {redirectTo}</p>
+          <p>Loading: {loading ? 'true' : 'false'}</p>
+          <p>Submitting: {isSubmitting ? 'true' : 'false'}</p>
+        </div>
+      )}
     </div>
   )
 }

@@ -105,7 +105,7 @@ export function TimesheetControls({
     onUpdate({ storeId: storeId, entries: [] })
   }
 
-  const handleEmployeeSelection = (employeeIds: string[]) => {
+ const handleEmployeeSelection = (employeeIds: string[]) => {
     const selectedEmployees = employees.filter(emp => employeeIds.includes(emp.id))
     
     if (selectedEmployees.length === 0) {
@@ -135,7 +135,7 @@ export function TimesheetControls({
           startTime: '',
           endTime: '',
           hours: 0,
-          // ✅ FIX: Default status is now 'alege'
+          // ✅ FIX: ALWAYS use 'alege' as default status consistently
           status: 'alege' as DayStatus,
           notes: ''
         }

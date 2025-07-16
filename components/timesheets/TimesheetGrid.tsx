@@ -1,13 +1,15 @@
+// components/timesheets/TimesheetGrid.tsx - Updated with real save functionality
 'use client'
 
 import { useMemo, useCallback, useState } from 'react'
 import { TimesheetGridHeader } from './TimesheetGridHeader'
 import { TimesheetGridRow } from './TimesheetGridRow'
 import { TimesheetGridFooter } from './TimesheetGridFooter'
+import { SaveStatusDisplay } from './SaveStatusDisplay'
 import { type TimesheetGridData, type TimesheetEntry, type DayStatus } from '@/types/timesheet-grid'
 import { generateDateRange, calculateTotalHours } from '@/lib/timesheet-utils'
+import { useTimesheetSave } from '@/hooks/timesheet/useTimesheetSave'
 
-// Local parsing function (no changes needed here)
 const parseTimeInterval = (interval: string): { startTime: string; endTime: string; hours: number } | null => {
   if (!interval || !interval.trim()) return null
   const regex = /^(\d{1,2}(?::\d{2})?)-(\d{1,2}(?::\d{2})?)$/
@@ -28,11 +30,10 @@ const parseTimeInterval = (interval: string): { startTime: string; endTime: stri
   return { startTime, endTime, hours: Math.round(hours * 100) / 100 }
 }
 
-// ✅ PROPS CHANGE: We now accept `data` and `onDataChange`
 interface TimesheetGridProps {
-  data: TimesheetGridData // The single source of truth for grid data
-  onDataChange: (newData: TimesheetGridData) => void // Callback to update the parent's state
-  onSave: () => Promise<void> // onSave no longer needs to pass data; parent already has it
+  data: TimesheetGridData
+  onDataChange: (newData: TimesheetGridData) => void
+  onSave?: () => Promise<void> // Optional fallback
   onCancel: () => void
   readOnly?: boolean
   className?: string
@@ -46,20 +47,36 @@ export function TimesheetGrid({
   readOnly = false,
   className = ''
 }: TimesheetGridProps) {
+  const { startDate, endDate, entries } = data
   
-  // ✅ REMOVED: All internal `useState` for `gridData` is gone.
-  // The component now relies entirely on the `data` prop.
-
-  const { startDate, endDate, entries } = data;
-
   const dateRange = useMemo(() => {
     return generateDateRange(new Date(startDate), new Date(endDate))
   }, [startDate, endDate])
 
-  const [isSaving, setIsSaving] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{ employeeId: string; date: string } | null>(null)
 
-  // ✅ REWRITTEN: updateCell now calculates the new state and calls the parent.
+  // ✅ NEW: Use persistent session ID based on grid data ID
+  const { 
+    saveTimesheet, 
+    isSaving, 
+    lastSaveResult, 
+    clearLastResult,
+    canSave,
+    sessionId
+  } = useTimesheetSave({
+    gridId: data.id, // Use grid data ID for session consistency
+    onSuccess: (result) => {
+      console.log('Grid save successful:', {
+        sessionId: result.sessionId,
+        created: result.savedTimesheets.filter(t => !t.isUpdate).length,
+        updated: result.savedTimesheets.filter(t => t.isUpdate).length
+      })
+    },
+    onPartialSuccess: (result) => {
+      console.log('Grid save partially successful:', result)
+    }
+  })
+
   const updateCell = useCallback((
     employeeId: string, 
     date: string, 
@@ -68,49 +85,43 @@ export function TimesheetGrid({
   ) => {
     if (readOnly) return
 
-    // Create a deep copy of the entries to modify
     const newEntries = data.entries.map(entry => {
       if (entry.employeeId !== employeeId) {
         return entry
       }
 
-      // Deep copy the days object of the target entry
-      const newDays = { ...entry.days };
-      const currentDay = newDays[date] || {};
-
-      // Calculate the updated day object
-      const updatedDay = { ...currentDay };
+      const newDays = { ...entry.days }
+      const currentDay = newDays[date] || {}
+      const updatedDay = { ...currentDay }
+      
       if (field === 'timeInterval') {
         const parsed = parseTimeInterval(value as string)
         if (parsed) {
-          updatedDay.timeInterval = value as string;
-          updatedDay.startTime = parsed.startTime;
-          updatedDay.endTime = parsed.endTime;
-          updatedDay.hours = parsed.hours;
+          updatedDay.timeInterval = value as string
+          updatedDay.startTime = parsed.startTime
+          updatedDay.endTime = parsed.endTime
+          updatedDay.hours = parsed.hours
         } else {
-          updatedDay.timeInterval = value as string;
-          updatedDay.startTime = '';
-          updatedDay.endTime = '';
-          updatedDay.hours = 0;
+          updatedDay.timeInterval = value as string
+          updatedDay.startTime = ''
+          updatedDay.endTime = ''
+          updatedDay.hours = 0
         }
       } else {
-        (updatedDay as any)[field] = value;
+        (updatedDay as any)[field] = value
       }
       
-      newDays[date] = updatedDay;
-      return { ...entry, days: newDays };
-    });
+      newDays[date] = updatedDay
+      return { ...entry, days: newDays }
+    })
 
-    // Notify the parent component with the entire new data object
     onDataChange({
       ...data,
       entries: newEntries,
       updatedAt: new Date().toISOString()
     })
-
   }, [readOnly, data, onDataChange])
 
-  // All calculations are now based on the `data` prop
   const employeeTotals = useMemo(() => {
     return entries.reduce((acc, entry) => {
       acc[entry.employeeId] = calculateTotalHours(entry.days)
@@ -126,16 +137,22 @@ export function TimesheetGrid({
     }, {} as Record<string, number>)
   }, [entries, dateRange])
 
-
+  // ✅ FIX: Handle save with proper store/zone context
   const handleSave = async () => {
-    if (readOnly) return
-    setIsSaving(true)
+    if (readOnly || !canSave) return
+
     try {
-      await onSave() // Parent already has the latest data
+      // Ensure grid data has store/zone information
+      const enrichedData = {
+        ...data,
+        // If no store/zone specified, the service will use employee's store/zone
+        storeId: data.storeId || undefined,
+        zoneId: data.zoneId || undefined
+      }
+      
+      await saveTimesheet(enrichedData)
     } catch (error) {
-      console.error('Failed to save timesheet:', error)
-    } finally {
-      setIsSaving(false)
+      console.error('Grid save failed:', error)
     }
   }
 
@@ -145,6 +162,16 @@ export function TimesheetGrid({
 
   return (
     <div className={`timesheet-grid bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
+      {/* ✅ NEW: Save Status Display */}
+      {lastSaveResult && (
+        <div className="p-4 border-b border-gray-200">
+          <SaveStatusDisplay 
+            result={lastSaveResult}
+            onDismiss={clearLastResult}
+          />
+        </div>
+      )}
+
       {data.entries.length > 0 ? (
         <>
           <div className="overflow-x-auto overflow-y-visible">
@@ -180,11 +207,15 @@ export function TimesheetGrid({
         </>
       ) : (
         <div className="p-8 text-center">
-            {/* ... No Employees Selected SVG and text ... */}
+          <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+          </svg>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Employees Selected</h3>
+          <p className="text-gray-600">Select employees from the controls above to start creating timesheets</p>
         </div>
       )}
     </div>
   )
 }
 
-export default TimesheetGrid;
+export default TimesheetGrid
