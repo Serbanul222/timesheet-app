@@ -16,6 +16,10 @@ export interface CellValidationContext {
   notes?: string
   absenceTypes: AbsenceType[]
   isWeekend?: boolean
+  // ✅ NEW: Delegation context
+  isDelegationRestricted?: boolean
+  employeeId?: string
+  cellDate?: string
 }
 
 // ✅ NEW: Grid-level validation context
@@ -30,15 +34,40 @@ export interface GridValidationContext {
 /**
  * Core validation rules for timesheet cells and grids
  */
+export interface CellValidationContext {
+  timeInterval: string
+  status: DayStatus
+  hours: number
+  notes?: string
+  absenceTypes: AbsenceType[]
+  isWeekend?: boolean
+  // ✅ NEW: Delegation context
+  isDelegationRestricted?: boolean
+  employeeId?: string
+  cellDate?: string
+}
+
+/**
+ * Core validation rules for timesheet cells - ENHANCED with delegation support
+ */
 export class TimesheetValidationRules {
   
   /**
-   * Validate a single cell with comprehensive rules
+   * Validate a single cell with comprehensive rules including delegation
    */
   static validateCell(context: CellValidationContext): ValidationResult {
-    const { timeInterval, status, hours, absenceTypes, isWeekend } = context
+    const { timeInterval, status, hours, absenceTypes, isWeekend, isDelegationRestricted } = context
     
-    // Run all validation rules in order
+    // ✅ NEW: Rule 0 - Check delegation restrictions first
+    if (isDelegationRestricted) {
+      const delegationResult = this.validateDelegationRestriction(context)
+      if (!delegationResult.isValid) {
+        return delegationResult
+      }
+    }
+    
+    
+    // Run all existing validation rules
     const rules = [
       this.validateTimeFormat,
       this.validateHoursAbsenceConflict,
@@ -88,6 +117,41 @@ export class TimesheetValidationRules {
       return {
         isValid: false,
         message: 'Shift must be at least 30 minutes',
+        type: 'error'
+      }
+    }
+    
+    return { isValid: true }
+  }
+
+  private static validateDelegationRestriction(context: CellValidationContext): ValidationResult {
+    const { timeInterval, hours, status, isDelegationRestricted } = context
+    
+    if (!isDelegationRestricted) {
+      return { isValid: true }
+    }
+    
+    // Check if user is trying to enter new data
+    const hasNewTimeData = timeInterval && timeInterval.trim()
+    const hasNewHours = hours > 0
+    const hasNewStatus = status !== 'alege'
+    
+    // Allow existing data to remain (don't validate if no changes)
+    // But prevent new entries after delegation date
+    if (hasNewTimeData || hasNewHours) {
+      return {
+        isValid: false,
+        message: 'Cannot edit timesheet after employee delegation date',
+        type: 'error'
+      }
+    }
+    
+    // Allow status changes to absences (like marking delegated days as OFF)
+    // but not working hours
+    if (hasNewStatus && (hasNewTimeData || hasNewHours)) {
+      return {
+        isValid: false,
+        message: 'Cannot add working hours after delegation date',
         type: 'error'
       }
     }

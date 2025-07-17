@@ -1,4 +1,4 @@
-// components/delegation/DelegationModal.tsx - Fixed & Shortened
+// components/delegation/DelegationModal.tsx - MINIMAL UPDATE: Added same store validation
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -48,7 +48,9 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
     formState: { errors },
     reset,
     watch,
-    setValue
+    setValue,
+    setError,
+    clearErrors
   } = useForm<DelegationFormData>({
     resolver: zodResolver(delegationSchema),
     defaultValues: {
@@ -61,19 +63,55 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
 
   const watchedValues = watch()
 
-  // Set default dates when modal opens - FIX: Use today as minimum date
+  // ✅ NEW: Filter out employee's current store from available stores
+  const validStores = useMemo(() => {
+    return availableStores.filter(store => {
+      // Exclude the employee's current store
+      if (store.id === employee.store_id) {
+        return false
+      }
+      return true
+    })
+  }, [availableStores, employee.store_id])
+
+  // ✅ NEW: Validate store selection in real-time
+  const selectedStore = useMemo(() => {
+    return availableStores.find(store => store.id === watchedValues.to_store_id)
+  }, [availableStores, watchedValues.to_store_id])
+
+  // ✅ NEW: Check if selected store is employee's current store
+  useEffect(() => {
+    if (watchedValues.to_store_id === employee.store_id) {
+      setError('to_store_id', {
+        type: 'manual',
+        message: `Cannot delegate ${employee.full_name} to their current store`
+      })
+    } else {
+      clearErrors('to_store_id')
+    }
+  }, [watchedValues.to_store_id, employee.store_id, employee.full_name, setError, clearErrors])
+
+  // Set default dates when modal opens
   useEffect(() => {
     if (isOpen) {
       const today = new Date()
       const defaultEnd = getDefaultEndDate()
       
-      // Set to today (not tomorrow) to avoid timezone issues
       setValue('valid_from', today.toISOString().split('T')[0])
       setValue('valid_until', defaultEnd.toISOString().split('T')[0])
     }
   }, [isOpen, setValue, getDefaultEndDate])
 
   const onSubmit = async (data: DelegationFormData) => {
+    // ✅ NEW: Final validation before submission
+    if (data.to_store_id === employee.store_id) {
+      setError('to_store_id', {
+        type: 'manual',
+        message: 'Cannot delegate employee to their current store'
+      })
+      return
+    }
+
     try {
       const request = {
         employee_id: employee.id,
@@ -110,7 +148,7 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Deleagă un angajat</h2>
+          <h2 className="text-xl font-bold text-gray-900">Delegate Employee</h2>
           <button
             type="button"
             onClick={handleClose}
@@ -124,7 +162,7 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
           <h3 className="font-medium text-gray-900">{employee.full_name}</h3>
           <p className="text-sm text-gray-600">
-            {employee.position || 'Staff'} • {employee.store?.name}
+            {employee.position || 'Staff'} • Currently at: {employee.store?.name}
           </p>
         </div>
 
@@ -132,7 +170,7 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
           {/* Destination Store */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Către magazinul *
+              Delegate to Store *
             </label>
             <select
               {...register('to_store_id')}
@@ -141,8 +179,9 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
               }`}
               disabled={isLoadingStores}
             >
-              <option value="">Selectează magazin</option>
-              {availableStores.map((store) => (
+              <option value="">Select destination store</option>
+              {/* ✅ UPDATED: Use filtered stores that exclude employee's current store */}
+              {validStores.map((store) => (
                 <option key={store.id} value={store.id}>
                   {store.name}
                 </option>
@@ -151,12 +190,26 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
             {errors.to_store_id && (
               <p className="mt-1 text-sm text-red-600">{errors.to_store_id.message}</p>
             )}
+            
+            {/* ✅ NEW: Show helpful info when no valid stores */}
+            {validStores.length === 0 && !isLoadingStores && (
+              <p className="mt-1 text-sm text-amber-600">
+                No other stores available for delegation in your zone.
+              </p>
+            )}
+            
+            {/* ✅ NEW: Show info about excluded current store */}
+            {availableStores.length > validStores.length && (
+              <p className="mt-1 text-xs text-gray-500">
+                Note: {employee.store?.name} is excluded because {employee.full_name} already works there.
+              </p>
+            )}
           </div>
 
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="De la *"
+              label="From *"
               type="date"
               {...register('valid_from')}
               error={errors.valid_from?.message}
@@ -164,7 +217,7 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
             />
             
             <Input
-              label="Până la *"
+              label="Until *"
               type="date"
               {...register('valid_until')}
               error={errors.valid_until?.message}
@@ -175,9 +228,9 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
           {/* Duration Display */}
           {duration > 0 && (
             <div className="text-sm bg-blue-50 p-2 rounded">
-              Durata: <span className="font-medium">{duration} {duration === 1 ? 'zi' : 'zile'}</span>
+              Duration: <span className="font-medium">{duration} {duration === 1 ? 'day' : 'days'}</span>
               {duration > DELEGATION_CONSTANTS.MAX_DELEGATION_DAYS && (
-                <span className="text-red-600 ml-2">(Prea lung!)</span>
+                <span className="text-red-600 ml-2">(Too long!)</span>
               )}
             </div>
           )}
@@ -185,13 +238,13 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notițe (Opțional)
+              Notes (Optional)
             </label>
             <textarea
               {...register('notes')}
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-              placeholder="Notițe despre delegare..."
+              placeholder="Reason for delegation..."
             />
           </div>
 
@@ -203,14 +256,19 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
               onClick={handleClose} 
               disabled={isCreating}
             >
-              Anulează
+              Cancel
             </Button>
             <Button 
               type="submit" 
               loading={isCreating} 
-              disabled={isCreating || duration > DELEGATION_CONSTANTS.MAX_DELEGATION_DAYS}
+              disabled={
+                isCreating || 
+                duration > DELEGATION_CONSTANTS.MAX_DELEGATION_DAYS ||
+                watchedValues.to_store_id === employee.store_id || // ✅ NEW: Disable if same store
+                validStores.length === 0
+              }
             >
-              {isCreating ? 'Se creează...' : 'Deplasează'}
+              {isCreating ? 'Creating...' : 'Create Delegation'}
             </Button>
           </div>
         </form>

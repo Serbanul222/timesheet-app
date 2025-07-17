@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetGridRow.tsx - Fixed consistent defaults
+// components/timesheets/TimesheetGridRow.tsx - MINIMAL UPDATE: Pass delegation context
 'use client'
 
 import { TimesheetCell } from './TimesheetCell'
@@ -21,6 +21,13 @@ interface TimesheetGridRowProps {
     field: 'timeInterval' | 'status' | 'notes',
     value: string | DayStatus
   ) => void
+  // ✅ NEW: Delegation context for the entire grid
+  delegations?: Array<{
+    employee_id: string
+    valid_from: string
+    to_store_id: string
+    from_store_id: string
+  }>
 }
 
 export function TimesheetGridRow({
@@ -30,7 +37,8 @@ export function TimesheetGridRow({
   selectedCell,
   readOnly,
   onCellSelect,
-  onUpdateCell
+  onUpdateCell,
+  delegations = [] // ✅ NEW: Delegation data passed down
 }: TimesheetGridRowProps) {
   return (
     <div className="timesheet-grid-row flex border-b border-gray-200 hover:bg-gray-50" style={{ minWidth: 'max-content' }}>
@@ -59,21 +67,18 @@ export function TimesheetGridRow({
         {dateRange.map((date, index) => {
           const dateKey = date.toISOString().split('T')[0]
           
-          // ✅ FIX: ALWAYS use 'alege' as default status consistently
           const dayData = entry.days[dateKey] || {
             timeInterval: '',
             startTime: '',
             endTime: '',
             hours: 0,
-            status: 'alege' as DayStatus, // ✅ CONSISTENT DEFAULT
+            status: 'alege' as DayStatus,
             notes: ''
           }
           
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           const isSelected = selectedCell?.employeeId === entry.employeeId && 
                            selectedCell?.date === dateKey
-
-          console.log(`Rendering cell ${index + 1}/${dateRange.length} for date:`, dateKey, 'data:', dayData)
 
           return (
             <TimesheetCell
@@ -86,6 +91,7 @@ export function TimesheetGridRow({
               readOnly={readOnly}
               onSelect={() => onCellSelect(entry.employeeId, dateKey)}
               onUpdate={(field, value) => onUpdateCell(entry.employeeId, dateKey, field, value)}
+              delegations={delegations} // ✅ NEW: Pass delegation context to cells
             />
           )
         })}

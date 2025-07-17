@@ -1,4 +1,4 @@
-// app/timesheets/page.tsx
+// app/timesheets/page.tsx - FIXED: Pass timesheet ID for historical context
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
@@ -99,11 +99,6 @@ export default function TimesheetsPage() {
     }
   }, [timesheetData, editingTimesheet]);
 
-  /**
-   * ✅ CORRECTED: This function now intelligently merges employee lists.
-   * When adding a new employee, it preserves the data of existing employees
-   * instead of overwriting them.
-   */
   const handleTimesheetUpdate = useCallback((newData: Partial<TimesheetGridData>) => {
     setTimesheetData(prev => {
       if (!prev) return newData as TimesheetGridData;
@@ -129,34 +124,24 @@ export default function TimesheetsPage() {
       return;
     }
 
-    const entries = Object.entries(timesheet.daily_entries).map(([employeeId, employeeData]: [string, any]) => {
-      const days: { [date: string]: any } = {};
-      const dateRange = generateDateRange(new Date(timesheet.period_start), new Date(timesheet.period_end));
-      
-      dateRange.forEach(date => {
-        const dateKey = date.toISOString().split('T')[0];
-        const dayEntry = employeeData.days?.[dateKey];
-        days[dateKey] = {
-          hours: dayEntry?.hours || 0, status: dayEntry?.status || 'alege',
-          notes: dayEntry?.notes || '', timeInterval: dayEntry?.timeInterval || '',
-        };
-      });
-
-      return {
-        employeeId, employeeName: employeeData.name, position: employeeData.position, days,
-      };
-    });
+    // ✅ ENHANCED: Better parsing of timesheet data formats
+    const entries = parseTimesheetEntries(timesheet);
 
     const gridData: TimesheetGridData = {
-      id: timesheet.id, storeId: timesheet.store_id, zoneId: timesheet.zone_id,
-      startDate: timesheet.period_start, endDate: timesheet.period_end,
-      entries, createdAt: timesheet.created_at, updatedAt: timesheet.updated_at,
+      id: timesheet.id, 
+      storeId: timesheet.store_id, 
+      zoneId: timesheet.zone_id,
+      startDate: timesheet.period_start, 
+      endDate: timesheet.period_end,
+      entries, 
+      createdAt: timesheet.created_at, 
+      updatedAt: timesheet.updated_at,
     };
 
     setTimesheetData(gridData);
     setEditingTimesheet(timesheet as TimesheetWithDetails);
     setViewMode('edit');
-    toast.info(`Now editing: ${timesheet.grid_title}`);
+    toast.info(`Now editing: ${timesheet.grid_title || 'Timesheet'}`);
   }, []);
 
   const handleCreateNew = useCallback(() => {
@@ -228,11 +213,12 @@ export default function TimesheetsPage() {
 
             {(viewMode === 'create' || viewMode === 'edit') && (
               <>
+                {/* ✅ ENHANCED: Pass existing timesheet ID for historical context */}
                 <TimesheetControls
                   timesheetData={timesheetData}
                   onUpdate={handleTimesheetUpdate}
                   isSaving={isSaving}
-                  preSelectedEmployeeId={urlEmployeeId || editingTimesheet?.employee_id}
+                  existingTimesheetId={editingTimesheet?.id} // ✅ NEW: Historical context
                 />
                 <TimesheetGrid
                   data={timesheetData}
@@ -248,4 +234,85 @@ export default function TimesheetsPage() {
       </div>
     </ProtectedRoute>
   );
+}
+
+// ✅ NEW: Enhanced timesheet entry parsing with better format support
+function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
+  const dailyEntries = timesheet.daily_entries;
+  if (!dailyEntries || typeof dailyEntries !== 'object') {
+    return [];
+  }
+
+  try {
+    const dateRange = generateDateRange(
+      new Date(timesheet.period_start), 
+      new Date(timesheet.period_end)
+    );
+
+    // Handle new format: { _employees: {...}, [date]: {...} }
+    if (dailyEntries._employees) {
+      console.log('📋 Parsing new format timesheet with _employees metadata');
+      
+      return Object.entries(dailyEntries._employees).map(([employeeId, employeeData]: [string, any]) => {
+        const days: { [date: string]: any } = {};
+        
+        dateRange.forEach(date => {
+          const dateKey = date.toISOString().split('T')[0];
+          const dayEntry = dailyEntries[dateKey]?.[employeeId];
+          
+          days[dateKey] = {
+            hours: dayEntry?.hours || 0,
+            status: dayEntry?.status || 'alege',
+            notes: dayEntry?.notes || '',
+            timeInterval: dayEntry?.timeInterval || '',
+          };
+        });
+
+        return {
+          employeeId,
+          employeeName: employeeData.name,
+          position: employeeData.position || 'Staff',
+          days,
+        };
+      });
+    }
+    
+    // Handle alternative format: { [employeeId]: { name, days: {...} } }
+    else {
+      console.log('📋 Parsing alternative format timesheet');
+      
+      return Object.entries(dailyEntries)
+        .filter(([key, value]) => 
+          !key.startsWith('_') && // Skip metadata
+          typeof value === 'object' && 
+          value.name // Has employee name
+        )
+        .map(([employeeId, employeeData]: [string, any]) => {
+          const days: { [date: string]: any } = {};
+          
+          dateRange.forEach(date => {
+            const dateKey = date.toISOString().split('T')[0];
+            const dayEntry = employeeData.days?.[dateKey];
+            
+            days[dateKey] = {
+              hours: dayEntry?.hours || 0,
+              status: dayEntry?.status || 'alege',
+              notes: dayEntry?.notes || '',
+              timeInterval: dayEntry?.timeInterval || '',
+            };
+          });
+
+          return {
+            employeeId,
+            employeeName: employeeData.name,
+            position: employeeData.position || 'Staff',
+            days,
+          };
+        });
+    }
+  } catch (error) {
+    console.error('❌ Error parsing timesheet entries:', error);
+    toast.error('Failed to parse timesheet data. The format may be incompatible.');
+    return [];
+  }
 }

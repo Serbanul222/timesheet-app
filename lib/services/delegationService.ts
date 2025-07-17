@@ -338,53 +338,73 @@ export class DelegationService {
   /**
    * Helper method to validate delegation request
    */
-  private static async validateDelegationRequest(
-    request: CreateDelegationRequest,
-    userId: string
-  ): Promise<DelegationValidationResult> {
-    try {
-      // Basic client-side validation first
-      if (!request.employee_id || !request.to_store_id || !request.valid_from || !request.valid_until) {
-        return { isValid: false, error: 'Missing required fields', canDelegate: false }
-      }
-      
-      const startDate = new Date(request.valid_from + 'T00:00:00') // Fix timezone issue
-      const endDate = new Date(request.valid_until + 'T23:59:59')   // Fix timezone issue
-      const now = new Date()
-      
-      // Set now to start of day for comparison
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-      
-      if (startDay < today) {
-        return { isValid: false, error: 'Start date cannot be in the past', canDelegate: false }
-      }
-      
-      if (endDate <= startDate) {
-        return { isValid: false, error: 'End date must be after start date', canDelegate: false }
-      }
-      
-      // Check for existing active delegations
-      const existing = await this.getDelegations({
-        employee_id: request.employee_id,
-        status: 'active'
-      })
-      
-      if (existing.length > 0) {
-        return { isValid: false, error: 'Employee already has an active delegation', canDelegate: false }
-      }
-      
-      return { isValid: true, canDelegate: true }
-      
-    } catch (error) {
-      console.error('DelegationService: Validation error:', error)
-      return {
-        isValid: false,
-        error: error instanceof Error ? error.message : 'Validation failed',
-        canDelegate: false
+private static async validateDelegationRequest(
+  request: CreateDelegationRequest,
+  userId: string
+): Promise<DelegationValidationResult> {
+  try {
+    // Basic client-side validation first
+    if (!request.employee_id || !request.to_store_id || !request.valid_from || !request.valid_until) {
+      return { isValid: false, error: 'Missing required fields', canDelegate: false }
+    }
+
+    // ✅ NEW: Get employee to check their current store
+    const { data: employee, error: employeeError } = await supabase
+      .from('employees')
+      .select('store_id, full_name')
+      .eq('id', request.employee_id)
+      .single()
+
+    if (employeeError || !employee) {
+      return { isValid: false, error: 'Employee not found', canDelegate: false }
+    }
+
+    // ✅ NEW: Check if trying to delegate to same store
+    if (employee.store_id === request.to_store_id) {
+      return { 
+        isValid: false, 
+        error: `Cannot delegate ${employee.full_name} to their current store. They already work there.`, 
+        canDelegate: false 
       }
     }
+    
+    const startDate = new Date(request.valid_from + 'T00:00:00')
+    const endDate = new Date(request.valid_until + 'T23:59:59')
+    const now = new Date()
+    
+    // Set now to start of day for comparison
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+    
+    if (startDay < today) {
+      return { isValid: false, error: 'Start date cannot be in the past', canDelegate: false }
+    }
+    
+    if (endDate <= startDate) {
+      return { isValid: false, error: 'End date must be after start date', canDelegate: false }
+    }
+    
+    // Check for existing active delegations
+    const existing = await this.getDelegations({
+      employee_id: request.employee_id,
+      status: 'active'
+    })
+    
+    if (existing.length > 0) {
+      return { isValid: false, error: 'Employee already has an active delegation', canDelegate: false }
+    }
+    
+    return { isValid: true, canDelegate: true }
+    
+  } catch (error) {
+    console.error('DelegationService: Validation error:', error)
+    return {
+      isValid: false,
+      error: error instanceof Error ? error.message : 'Validation failed',
+      canDelegate: false
+    }
   }
+}
   
   /**
    * Helper method to get delegation context data

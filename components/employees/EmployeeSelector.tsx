@@ -1,4 +1,4 @@
-// components/employees/EmployeeSelector.tsx - Fixed with store validation
+// components/employees/EmployeeSelector.tsx - Enhanced with historical employee support
 'use client'
 
 import { useState, useMemo } from 'react'
@@ -13,6 +13,7 @@ interface EmployeeSelectorProps {
   maxHeight?: string
   className?: string
   storeId?: string
+  historicalEmployees?: EmployeeWithDetails[] // ✅ NEW: Historical context
 }
 
 export function EmployeeSelector({
@@ -21,12 +22,22 @@ export function EmployeeSelector({
   onSelectionChange,
   maxHeight = '300px',
   className = '',
-  storeId
+  storeId,
+  historicalEmployees = [] // ✅ NEW: Historical employees
 }: EmployeeSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('')
   
   // Check if store is selected
   const hasStoreSelected = storeId && storeId.trim() !== ''
+  
+  // ✅ NEW: Categorize employees for better organization
+  const { regularEmployees, delegatedEmployees, historicalEmployeesList } = useMemo(() => {
+    return {
+      regularEmployees: employees.filter(emp => !emp.isDelegated && !emp.isHistorical),
+      delegatedEmployees: employees.filter(emp => emp.isDelegated && !emp.isHistorical),
+      historicalEmployeesList: employees.filter(emp => emp.isHistorical)
+    }
+  }, [employees])
   
   // Filter employees based on search term
   const filteredEmployees = useMemo(() => {
@@ -70,6 +81,59 @@ export function EmployeeSelector({
     selectedIds.includes(emp.id)
   ).length
 
+  // ✅ NEW: Get styling for employee based on status
+  const getEmployeeRowStyle = (employee: EmployeeWithDetails) => {
+    let baseStyle = "flex items-center p-3 cursor-pointer transition-colors"
+    
+    if (employee.isHistorical) {
+      // Historical employees - grayed out but selectable
+      baseStyle += " bg-gray-50 border-l-4 border-l-blue-400"
+      if (selectedIds.includes(employee.id)) {
+        baseStyle += " bg-blue-100"
+      } else {
+        baseStyle += " hover:bg-gray-100"
+      }
+    } else if (employee.isDelegated) {
+      // Delegated employees - purple accent
+      baseStyle += " bg-purple-50 border-l-4 border-l-purple-400"
+      if (selectedIds.includes(employee.id)) {
+        baseStyle += " bg-purple-100"
+      } else {
+        baseStyle += " hover:bg-purple-75"
+      }
+    } else {
+      // Regular employees - standard styling
+      if (selectedIds.includes(employee.id)) {
+        baseStyle += " bg-blue-50"
+      } else {
+        baseStyle += " hover:bg-gray-50"
+      }
+    }
+    
+    return baseStyle
+  }
+
+  // ✅ NEW: Get employee status badge
+  const getEmployeeStatusBadge = (employee: EmployeeWithDetails) => {
+    if (employee.isHistorical) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-300">
+          From Timesheet
+        </span>
+      )
+    }
+    
+    if (employee.isDelegated && employee.delegation) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
+          Delegated from {employee.delegation.from_store_name}
+        </span>
+      )
+    }
+    
+    return null
+  }
+
   return (
     <div className={`border border-gray-300 rounded-md ${className}`}>
       {/* Search and Actions Header */}
@@ -102,8 +166,30 @@ export function EmployeeSelector({
           </Button>
         </div>
         
-        <div className="text-xs text-gray-600">
-          {selectedCount} selected • {filteredEmployees.length} shown • {employees.length} total
+        {/* ✅ NEW: Enhanced summary with employee categories */}
+        <div className="text-xs text-gray-600 space-y-1">
+          <div>
+            {selectedCount} selected • {filteredEmployees.length} shown • {employees.length} total
+          </div>
+          {(regularEmployees.length > 0 || delegatedEmployees.length > 0 || historicalEmployeesList.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {regularEmployees.length > 0 && (
+                <span className="text-green-600">
+                  {regularEmployees.length} regular
+                </span>
+              )}
+              {delegatedEmployees.length > 0 && (
+                <span className="text-purple-600">
+                  {delegatedEmployees.length} delegated
+                </span>
+              )}
+              {historicalEmployeesList.length > 0 && (
+                <span className="text-blue-600">
+                  {historicalEmployeesList.length} from timesheet
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -142,51 +228,62 @@ export function EmployeeSelector({
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {filteredEmployees.map((employee) => {
-              const isSelected = selectedIds.includes(employee.id)
-              
-              return (
-                <label
-                  key={employee.id}
-                  className={`flex items-center p-3 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    isSelected ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => handleEmployeeToggle(employee.id)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
-                  />
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium text-sm text-gray-900 truncate">
-                        {employee.full_name}
-                      </div>
-                      
-                      {employee.employee_code && (
-                        <div className="text-xs text-gray-500 ml-2">
-                          #{employee.employee_code}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="text-xs text-gray-600">
-                        {employee.position || 'Staff'}
-                      </div>
-                      
-                      {employee.store && (
-                        <div className="text-xs text-gray-500">
-                          {employee.store.name}
-                        </div>
-                      )}
-                    </div>
+            {/* ✅ NEW: Organize employees by category for editing context */}
+            {historicalEmployeesList.length > 0 && (
+              <>
+                <div className="p-2 bg-blue-50 border-b border-blue-200">
+                  <h4 className="text-xs font-medium text-blue-800 uppercase tracking-wide">
+                    From Original Timesheet ({historicalEmployeesList.length})
+                  </h4>
+                  <p className="text-xs text-blue-600 mt-1">
+                    These employees were in the original timesheet and remain editable
+                  </p>
+                </div>
+                {historicalEmployeesList
+                  .filter(emp => !searchTerm || 
+                    emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    emp.position?.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map((employee) => (
+                    <EmployeeRow
+                      key={employee.id}
+                      employee={employee}
+                      isSelected={selectedIds.includes(employee.id)}
+                      onToggle={() => handleEmployeeToggle(employee.id)}
+                      getRowStyle={getEmployeeRowStyle}
+                      getStatusBadge={getEmployeeStatusBadge}
+                    />
+                  ))}
+              </>
+            )}
+            
+            {/* Current employees (regular + delegated) */}
+            {(regularEmployees.length > 0 || delegatedEmployees.length > 0) && (
+              <>
+                {historicalEmployeesList.length > 0 && (
+                  <div className="p-2 bg-gray-50 border-b border-gray-200">
+                    <h4 className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                      Current Store Employees ({regularEmployees.length + delegatedEmployees.length})
+                    </h4>
                   </div>
-                </label>
-              )
-            })}
+                )}
+                {[...regularEmployees, ...delegatedEmployees]
+                  .filter(emp => !searchTerm || 
+                    emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    emp.position?.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map((employee) => (
+                    <EmployeeRow
+                      key={employee.id}
+                      employee={employee}
+                      isSelected={selectedIds.includes(employee.id)}
+                      onToggle={() => handleEmployeeToggle(employee.id)}
+                      getRowStyle={getEmployeeRowStyle}
+                      getStatusBadge={getEmployeeStatusBadge}
+                    />
+                  ))}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -212,5 +309,67 @@ export function EmployeeSelector({
         </div>
       )}
     </div>
+  )
+}
+
+// ✅ NEW: Separate component for employee rows to keep code clean
+interface EmployeeRowProps {
+  employee: EmployeeWithDetails
+  isSelected: boolean
+  onToggle: () => void
+  getRowStyle: (employee: EmployeeWithDetails) => string
+  getStatusBadge: (employee: EmployeeWithDetails) => React.ReactNode
+}
+
+function EmployeeRow({ 
+  employee, 
+  isSelected, 
+  onToggle, 
+  getRowStyle, 
+  getStatusBadge 
+}: EmployeeRowProps) {
+  return (
+    <label className={getRowStyle(employee)}>
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={onToggle}
+        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+      />
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <div className={`font-medium text-sm truncate ${
+            employee.isHistorical ? 'text-gray-700' : 'text-gray-900'
+          }`}>
+            {employee.full_name}
+          </div>
+          
+          {employee.employee_code && (
+            <div className="text-xs text-gray-500 ml-2">
+              #{employee.employee_code}
+            </div>
+          )}
+        </div>
+        
+        <div className="flex items-center justify-between mt-1">
+          <div className={`text-xs ${
+            employee.isHistorical ? 'text-gray-500' : 'text-gray-600'
+          }`}>
+            {employee.position || 'Staff'}
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            {employee.store && (
+              <div className="text-xs text-gray-500">
+                {employee.store.name}
+              </div>
+            )}
+            
+            {getStatusBadge(employee)}
+          </div>
+        </div>
+      </div>
+    </label>
   )
 }

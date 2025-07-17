@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetControls.tsx - Simplified with extracted components
+// components/timesheets/TimesheetControls.tsx - Updated with historical context
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -25,24 +25,31 @@ interface TimesheetControlsProps {
   timesheetData: TimesheetGridData
   onUpdate: (data: Partial<TimesheetGridData>) => void
   isSaving: boolean
+  // ✅ NEW: Pass existing timesheet ID for historical context
+  existingTimesheetId?: string
 }
 
 export function TimesheetControls({
   timesheetData,
   onUpdate,
-  isSaving
+  isSaving,
+  existingTimesheetId // ✅ NEW: Historical context
 }: TimesheetControlsProps) {
   const { profile } = useAuth()
+  
+  // ✅ ENHANCED: Pass timesheet ID for historical employee loading
   const { 
     employees, 
     regularEmployees,
     delegatedEmployees,
+    historicalEmployees, // ✅ NEW: Historical employees
     isLoading: loadingEmployees, 
     refetch: refetchEmployees,
     hasStoreSelected 
   } = useEmployees({
     storeId: timesheetData.storeId,
-    includeDelegated: true
+    includeDelegated: true,
+    timesheetId: existingTimesheetId // ✅ NEW: Include historical context
   })
   
   const [stores, setStores] = useState<Store[]>([])
@@ -112,22 +119,18 @@ export function TimesheetControls({
     }
     onUpdate(updates)
   }
-// In components/timesheets/TimesheetControls.tsx
 
   const handleStoreChange = (storeId: string) => {
-    // Find the full store object from the state
-    const selectedStore = stores.find(store => store.id === storeId);
-
-    setSelectedStoreId(storeId);
-    setSelectedEmployeeIds([]);
+    const selectedStore = stores.find(store => store.id === storeId)
+    setSelectedStoreId(storeId)
+    setSelectedEmployeeIds([])
     
-    // ✅ CORRECTED: Pass both the storeId and the zoneId
     onUpdate({ 
       storeId: storeId, 
-      zoneId: selectedStore ? selectedStore.zone_id : undefined, // Look up the zone_id
+      zoneId: selectedStore ? selectedStore.zone_id : undefined,
       entries: [] 
-    });
-  };
+    })
+  }
 
   const handleEmployeeSelection = (employeeIds: string[]) => {
     const selectedEmployees = employees.filter(emp => employeeIds.includes(emp.id))
@@ -245,12 +248,27 @@ export function TimesheetControls({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-4">
             <label className="block text-sm font-medium text-gray-900">Select Employees</label>
-            {delegatedEmployees.length > 0 && (
-              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                {delegatedEmployees.length} delegated employee{delegatedEmployees.length !== 1 ? 's' : ''}
-              </div>
-            )}
+            
+            {/* ✅ NEW: Show employee type counts */}
+            <div className="flex items-center space-x-2 text-xs">
+              {historicalEmployees.length > 0 && (
+                <div className="text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  {historicalEmployees.length} from timesheet
+                </div>
+              )}
+              {delegatedEmployees.length > 0 && (
+                <div className="text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                  {delegatedEmployees.length} delegated here
+                </div>
+              )}
+              {regularEmployees.length > 0 && (
+                <div className="text-green-600 bg-green-50 px-2 py-1 rounded">
+                  {regularEmployees.length} regular
+                </div>
+              )}
+            </div>
           </div>
+          
           <div className="flex items-center space-x-3">
             <div className="text-sm text-gray-600">
               {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
@@ -277,6 +295,25 @@ export function TimesheetControls({
             preselectedStoreId={selectedStoreId}
           />
         )}
+
+        {/* ✅ NEW: Historical employees notice */}
+        {historicalEmployees.length > 0 && existingTimesheetId && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-blue-800">Editing Existing Timesheet</h4>
+                <p className="text-sm text-blue-700 mt-1">
+                  This timesheet includes employees who may have been delegated to other stores since it was created. 
+                  These employees ({historicalEmployees.map(emp => emp.full_name).join(', ')}) are shown with grayed-out 
+                  styling but remain editable for this timesheet.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         
         {!hasStoreSelected ? (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
@@ -300,6 +337,7 @@ export function TimesheetControls({
             onSelectionChange={handleEmployeeSelection}
             maxHeight="150px"
             storeId={selectedStoreId}
+            historicalEmployees={historicalEmployees} // ✅ NEW: Pass historical context
           />
         )}
       </div>
@@ -320,6 +358,7 @@ export function TimesheetControls({
         stores={stores}
         regularEmployees={regularEmployees}
         delegatedEmployees={delegatedEmployees}
+        historicalEmployees={historicalEmployees} // ✅ NEW: Include historical
         employees={employees}
         onSelectAll={() => handleEmployeeSelection(employees.map(emp => emp.id))}
         onClearAll={() => handleEmployeeSelection([])}

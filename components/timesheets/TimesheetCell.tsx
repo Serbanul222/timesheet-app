@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetCell.tsx - Updated with validation
+// components/timesheets/TimesheetCell.tsx - ENHANCED: Added delegation date restrictions
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -27,6 +27,13 @@ interface TimesheetCellProps {
   readOnly: boolean
   onSelect: () => void
   onUpdate: (field: 'timeInterval' | 'status' | 'notes', value: string | DayStatus) => void
+  // ✅ NEW: Delegation context for validation
+  delegations?: Array<{
+    employee_id: string
+    valid_from: string
+    to_store_id: string
+    from_store_id: string
+  }>
 }
 
 export function TimesheetCell({
@@ -37,25 +44,37 @@ export function TimesheetCell({
   isSelected,
   readOnly,
   onSelect,
-  onUpdate
+  onUpdate,
+  delegations = [] // ✅ NEW: Delegation data
 }: TimesheetCellProps) {
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [editNotesValue, setEditNotesValue] = useState('')
   const [showValidation, setShowValidation] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
-  // Real-time validation
-  const { validationResult, suggestedFix } = useCellValidation({
+  // ✅ ENHANCED: Real-time validation with delegation context
+  const { 
+    validationResult, 
+    suggestedFix, 
+    isDelegationRestricted 
+  } = useCellValidation({
     timeInterval: dayData.timeInterval || '',
     status: dayData.status,
     hours: dayData.hours,
     notes: dayData.notes,
-    isWeekend
+    isWeekend,
+    // ✅ NEW: Pass delegation context
+    employeeId,
+    cellDate: date,
+    delegations
   })
+  
+  // ✅ NEW: Determine if cell should be read-only due to delegation
+  const isEffectivelyReadOnly = readOnly || isDelegationRestricted
   
   // Handle right-click for notes
   const handleRightClick = (e: React.MouseEvent) => {
-    if (readOnly) return
+    if (isEffectivelyReadOnly) return
     e.preventDefault()
     e.stopPropagation()
     setEditNotesValue(dayData.notes || '')
@@ -95,19 +114,22 @@ export function TimesheetCell({
   
   // Auto-show validation on invalid state
   useEffect(() => {
-    if (!validationResult.isValid && !readOnly) {
+    if (!validationResult.isValid && !isEffectivelyReadOnly) {
       setShowValidation(true)
-      // ✅ FIX: Show validation for longer for warnings, shorter for errors
       const timeout = validationResult.type === 'warning' ? 3000 : 5000
       const timer = setTimeout(() => setShowValidation(false), timeout)
       return () => clearTimeout(timer)
     }
-  }, [validationResult.isValid, validationResult.type, readOnly])
+  }, [validationResult.isValid, validationResult.type, isEffectivelyReadOnly])
   
-  // Cell background based on status and validation
+  // ✅ ENHANCED: Cell background with delegation consideration
   const getCellBg = () => {
+    // Delegation restricted cells get special styling
+    if (isDelegationRestricted) {
+      return 'bg-gray-100 border-gray-300'
+    }
+    
     if (!validationResult.isValid) {
-      // ✅ FIX: Different colors for errors vs warnings
       if (validationResult.type === 'error') {
         return 'bg-red-50 border-red-300'
       } else if (validationResult.type === 'warning') {
@@ -139,10 +161,11 @@ export function TimesheetCell({
       <div
         className={`w-12 border-r border-gray-300 cursor-pointer relative flex flex-col ${getCellBg()} ${
           isSelected ? 'ring-2 ring-blue-400' : ''
-        }`}
+        } ${isDelegationRestricted ? 'opacity-60' : ''}`} // ✅ NEW: Visual indication for restricted cells
         onClick={onSelect}
         onContextMenu={handleRightClick}
         style={{ minHeight: '44px' }}
+        title={isDelegationRestricted ? 'Employee delegated - editing restricted after delegation date' : undefined}
       >
         {/* Time Section */}
         <div className="flex-1 flex items-center justify-center px-1">
@@ -152,7 +175,7 @@ export function TimesheetCell({
             hours={dayData.hours}
             notes={dayData.notes}
             isWeekend={isWeekend}
-            readOnly={readOnly}
+            readOnly={isEffectivelyReadOnly} // ✅ UPDATED: Use effective read-only state
             onTimeIntervalChange={(value) => onUpdate('timeInterval', value)}
             onFocus={onSelect}
           />
@@ -166,7 +189,7 @@ export function TimesheetCell({
             hours={dayData.hours}
             notes={dayData.notes}
             isWeekend={isWeekend}
-            readOnly={readOnly}
+            readOnly={isEffectivelyReadOnly} // ✅ UPDATED: Use effective read-only state
             onStatusChange={(value) => onUpdate('status', value)}
           />
         </div>
@@ -180,22 +203,33 @@ export function TimesheetCell({
           />
         )}
 
+        {/* ✅ NEW: Delegation restriction indicator */}
+        {isDelegationRestricted && (
+          <div className="absolute top-1 right-1">
+            <div className="w-2 h-2 bg-orange-500 rounded-full" title="Delegation restricted" />
+          </div>
+        )}
+
         {/* Notes Indicator */}
         {hasNotes && (
           <div 
-            className="absolute top-1 right-1 cursor-pointer"
+            className="absolute bottom-1 right-1 cursor-pointer"
             onClick={(e) => {
               e.stopPropagation()
-              handleRightClick(e as any)
+              if (!isEffectivelyReadOnly) {
+                handleRightClick(e as any)
+              }
             }}
           >
-            <div className="w-1.5 h-1.5 bg-orange-400 rounded-full hover:bg-orange-500" />
+            <div className={`w-1.5 h-1.5 rounded-full ${
+              isDelegationRestricted ? 'bg-orange-300' : 'bg-orange-400 hover:bg-orange-500'
+            }`} />
           </div>
         )}
       </div>
 
-      {/* Notes Edit Popup */}
-      {isEditingNotes && (
+      {/* Notes Edit Popup - only if not delegation restricted */}
+      {isEditingNotes && !isDelegationRestricted && (
         <div className="absolute top-full left-0 z-50 bg-white border rounded shadow-lg p-2 w-36">
           <textarea
             ref={textareaRef}

@@ -180,17 +180,37 @@ export class DelegationValidationRules {
    * Rule 4: Validate store relationships
    */
   private static validateStores(fromStore: Store, toStore: Store): DelegationValidationResult {
-    // Cannot delegate to the same store
-    if (fromStore.id === toStore.id) {
-      return {
-        isValid: false,
-        error: DELEGATION_MESSAGES.SAME_STORE,
-        canDelegate: false
-      }
+  // ✅ NEW: Cannot delegate to the same store (this was the missing validation)
+  if (fromStore.id === toStore.id) {
+    return {
+      isValid: false,
+      error: 'Cannot delegate employee to their current store. Employee is already assigned here.',
+      canDelegate: false
     }
-    
-    return { isValid: true, canDelegate: true }
   }
+  
+  return { isValid: true, canDelegate: true }
+}
+
+// ✅ NEW: Additional helper method for UI components
+/**
+ * Check if a store is valid for delegation for a specific employee
+ */
+static isStoreValidForDelegation(
+  employee: Employee,
+  targetStoreId: string
+): { isValid: boolean; reason?: string } {
+  
+  // Employee cannot be delegated to their own store
+  if (employee.store_id === targetStoreId) {
+    return {
+      isValid: false,
+      reason: `${employee.full_name} already belongs to this store`
+    }
+  }
+  
+  return { isValid: true }
+}
   
   /**
    * Rule 5: Validate delegation dates
