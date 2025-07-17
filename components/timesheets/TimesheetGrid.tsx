@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetGrid.tsx - Complete rewrite with proper validation
+// components/timesheets/TimesheetGrid.tsx
 'use client'
 
 import { useMemo, useCallback, useState } from 'react'
@@ -10,6 +10,7 @@ import { type TimesheetGridData, type TimesheetEntry, type DayStatus } from '@/t
 import { generateDateRange, calculateTotalHours } from '@/lib/timesheet-utils'
 import { useTimesheetSave } from '@/hooks/timesheet/useTimesheetSave'
 import { useGridValidation } from '@/hooks/validation/useGridValidation'
+import { TimesheetCreator } from './TimesheetCreator' // Import the creator
 
 const parseTimeInterval = (interval: string): { startTime: string; endTime: string; hours: number } | null => {
   if (!interval || !interval.trim()) return null
@@ -32,9 +33,8 @@ const parseTimeInterval = (interval: string): { startTime: string; endTime: stri
 }
 
 interface TimesheetGridProps {
-  data: TimesheetGridData
-  onDataChange: (newData: TimesheetGridData) => void
-  onSave?: () => Promise<void>
+  data: TimesheetGridData | null // Data can be null for creation
+  onDataChange: (newData: TimesheetGridData | null) => void // Allow null
   onCancel: () => void
   readOnly?: boolean
   className?: string
@@ -43,11 +43,19 @@ interface TimesheetGridProps {
 export function TimesheetGrid({
   data,
   onDataChange,
-  onSave,
   onCancel,
   readOnly = false,
   className = ''
 }: TimesheetGridProps) {
+  
+  // ✅ CORRECTED: If data is null, render the creator component.
+  // This prevents the rest of the component from crashing while preserving all original logic.
+  if (!data) {
+    return <TimesheetCreator onGridCreate={onDataChange} onCancel={onCancel} />;
+  }
+
+  // --- ALL ORIGINAL LOGIC IS PRESERVED BELOW ---
+
   const { startDate, endDate, entries } = data
   
   const dateRange = useMemo(() => {
@@ -73,7 +81,6 @@ export function TimesheetGrid({
     lastSaveResult, 
     clearLastResult,
     canSave: canSaveService,
-    sessionId
   } = useTimesheetSave({
     gridId: data.id,
     onSuccess: (result) => {
@@ -221,7 +228,6 @@ export function TimesheetGrid({
                   {validationResult.errorCount} error{validationResult.errorCount !== 1 ? 's' : ''} must be fixed before saving
                 </p>
                 
-                {/* Show detailed errors */}
                 {getErrorsByEmployee().length > 0 && (
                   <div className="mt-3 space-y-2">
                     {getErrorsByEmployee().map(({ employeeId, employeeName, errors }) => (
@@ -266,7 +272,6 @@ export function TimesheetGrid({
                   {validationResult.warningCount} warning{validationResult.warningCount !== 1 ? 's' : ''} - you can save but should review these entries
                 </p>
                 
-                {/* Show detailed warnings */}
                 {validationResult.warnings.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {validationResult.warnings.map((warning, index) => (
@@ -303,7 +308,7 @@ export function TimesheetGrid({
       )}
 
       {/* Grid Content or Setup Message */}
-      {data.entries.length > 0 && hasBasicSetup ? (
+      {data.entries.length > 0 && hasBasicSetup() ? (
         <>
           <div className="overflow-x-auto overflow-y-visible">
             <div style={{ minWidth: 'max-content' }}>
@@ -337,12 +342,12 @@ export function TimesheetGrid({
             canSave={canSave}
             validationSummary={getValidationSummary()}
             hasValidationErrors={!validationResult.isValid && hasBasicSetup()}
-            hasSetupErrors={!hasBasicSetup}
+            hasSetupErrors={!hasBasicSetup()}
           />
         </>
       ) : (
         <div className="p-8 text-center">
-          {!hasBasicSetup ? (
+          {!hasBasicSetup() ? (
             <>
               <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
                 <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

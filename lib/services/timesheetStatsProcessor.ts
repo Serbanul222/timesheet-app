@@ -10,16 +10,12 @@ const isObject = (value: any): value is object => {
 // A helper to determine the format of the daily_entries JSON
 const getFormat = (data: any): 'new' | 'old' | 'unknown' => {
   if (!isObject(data)) return 'unknown';
+  // The old format is uniquely identified by the `_employees` metadata key.
   if (data.hasOwnProperty('_employees')) return 'old';
-  // Check if top-level keys look like UUIDs (for the 'new' format)
-  const keys = Object.keys(data);
-  if (keys.length > 0 && keys.every(k => typeof k === 'string' && k.length > 30)) {
-      return 'new';
-  }
-  // If it's an object but doesn't match, it might be empty or another format
-  return 'unknown';
+  // If it's an object and doesn't have _employees, we'll treat it as the new format.
+  // This is safer than checking for UUID keys and handles empty objects gracefully.
+  return 'new';
 };
-
 
 const getDaysInPeriod = (startDate: string, endDate: string): number => {
   try {
@@ -32,10 +28,6 @@ const getDaysInPeriod = (startDate: string, endDate: string): number => {
   }
 };
 
-/**
- * ✅ CORRECTED: Now handles both old (date-first) and new (employee-first) JSON structures
- * and correctly processes records with empty `daily_entries`.
- */
 export function processStoreStats(timesheets: any[]): StoreStats[] {
   const storeMap = new Map<string, any>();
 
@@ -50,22 +42,18 @@ export function processStoreStats(timesheets: any[]): StoreStats[] {
 
     const store = storeMap.get(ts.store_id)!;
     store.totalHours += ts.total_hours || 0;
+    store.employeeCount += ts.employee_count || 0;
 
     const employeesData = ts.daily_entries;
     const format = getFormat(employeesData);
-    
-    // Even if format is unknown, we should still count the grid's employee count if available
-    if (format === 'unknown') {
-        store.employeeCount += ts.employee_count || 0;
-        return;
-    };
+    if (format === 'unknown') return;
 
     const periodDays = getDaysInPeriod(ts.period_start, ts.period_end);
     let employeeIds: string[] = [];
     let daysWithEntries = 0;
 
     if (format === 'old') {
-      employeeIds = Object.keys(employeesData._employees);
+      employeeIds = isObject(employeesData._employees) ? Object.keys(employeesData._employees) : [];
       Object.keys(employeesData).forEach(date => {
         if (date.startsWith('_')) return;
         daysWithEntries += Object.keys(employeesData[date]).length;
@@ -79,7 +67,6 @@ export function processStoreStats(timesheets: any[]): StoreStats[] {
       });
     }
     
-    store.employeeCount += ts.employee_count || employeeIds.length;
     store.totalPossibleDays += (ts.employee_count || employeeIds.length) * periodDays;
     store.filledDays += daysWithEntries;
   });
@@ -100,6 +87,7 @@ export function processEmployeeStats(timesheets: any[]): EmployeeStats[] {
     if (format === 'unknown') return;
 
     if (format === 'old') {
+      if (!isObject(employeesData._employees)) return;
       Object.keys(employeesData._employees).forEach(empId => {
         const empInfo = employeesData._employees[empId];
         if (!employeeMap.has(empId)) {
@@ -121,7 +109,7 @@ export function processEmployeeStats(timesheets: any[]): EmployeeStats[] {
     } else { // format === 'new'
       Object.keys(employeesData).forEach(empId => {
         const empData = employeesData[empId];
-        if (!isObject(empData) || !empData.name || !isObject(empData.days)) return;
+        if (!isObject(empData) || !empData.name) return;
 
         if (!employeeMap.has(empId)) {
           employeeMap.set(empId, {
@@ -130,13 +118,15 @@ export function processEmployeeStats(timesheets: any[]): EmployeeStats[] {
           });
         }
         const employee = employeeMap.get(empId)!;
-        Object.keys(empData.days).forEach(date => {
-          const day = empData.days[date];
-          if (isObject(day) && day.hours > 0) {
-            employee.totalHours += day.hours;
-            employee.daysWorked += 1;
-          }
-        });
+        if (isObject(empData.days)) {
+          Object.keys(empData.days).forEach(date => {
+            const day = empData.days[date];
+            if (isObject(day) && day.hours > 0) {
+              employee.totalHours += day.hours;
+              employee.daysWorked += 1;
+            }
+          });
+        }
       });
     }
   });
@@ -150,21 +140,21 @@ export function processEmployeeStats(timesheets: any[]): EmployeeStats[] {
 
 export function processStatusStats(timesheets: any[]): StatusBreakdown[] {
   const statusMap = new Map<string, { count: number; hours: number }>();
-  const workingStatusKey = 'Working';
-  statusMap.set(workingStatusKey, { count: 0, hours: 0 });
-
+  
   const processDay = (day: any) => {
     if (!isObject(day)) return;
     const status = day.status || 'alege';
-    if (status === 'alege' || status === 'work') {
-      const workingData = statusMap.get(workingStatusKey)!;
-      if (day.hours > 0) {
-        workingData.count += 1;
-        workingData.hours += day.hours;
-      }
-    } else {
-      if (!statusMap.has(status)) statusMap.set(status, { count: 0, hours: 0 });
-      statusMap.get(status)!.count += 1;
+    
+    // Use a more specific key for working hours to avoid conflicts
+    const statusKey = (status === 'alege' || status === 'work') ? 'Working' : status;
+
+    if (!statusMap.has(statusKey)) {
+        statusMap.set(statusKey, { count: 0, hours: 0 });
+    }
+    const statusData = statusMap.get(statusKey)!;
+    statusData.count += 1;
+    if (statusKey === 'Working') {
+        statusData.hours += day.hours || 0;
     }
   };
 
