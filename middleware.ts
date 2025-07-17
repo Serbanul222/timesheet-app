@@ -9,7 +9,7 @@ export async function middleware(req: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession()
   
   // Protected routes
-  const protectedPaths = ['/dashboard', '/timesheets', '/employees']
+  const protectedPaths = ['/timesheets', '/employees']
   const isProtectedPath = protectedPaths.some(path => 
     req.nextUrl.pathname.startsWith(path)
   )
@@ -21,7 +21,7 @@ export async function middleware(req: NextRequest) {
   
   // Redirect to dashboard if authenticated and on login page
   if (session && req.nextUrl.pathname === '/login') {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+    return NextResponse.redirect(new URL('/timesheets', req.url))
   }
   
   return res

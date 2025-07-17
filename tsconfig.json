@@ -20,8 +20,40 @@
     ],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    // Optimizations to reduce bundle size and compilation time
+    "removeComments": true,
+    "importHelpers": true,
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false,
+    // Type checking optimizations
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": false,
+    // Module resolution optimizations
+    "moduleDetection": "force",
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    // Performance optimizations
+    "assumeChangesOnlyAffectDirectDependencies": true
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts", 
+    "**/*.ts", 
+    "**/*.tsx", 
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next/cache",
+    "dist",
+    "build",
+    "coverage"
+  ],
+  // TypeScript performance optimizations
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  }
 }

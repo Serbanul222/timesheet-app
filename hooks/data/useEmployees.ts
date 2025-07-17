@@ -1,4 +1,4 @@
-// hooks/data/useEmployees.ts - Updated with delegation support
+// hooks/data/useEmployees.ts - FIXED: Exclude employees delegated away
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
@@ -56,8 +56,11 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
       let regularEmployees: EmployeeWithDetails[] = []
       let delegatedEmployees: EmployeeWithDetails[] = []
 
-      // 1. Fetch regular employees (assigned to this store)
+      // 1. ✅ FIX: Fetch regular employees EXCLUDING those currently delegated away
       if (effectiveStoreId && effectiveStoreId.trim() !== '') {
+        const now = new Date().toISOString()
+        
+        // First, get all employees assigned to this store
         let query = supabase
           .from('employees')
           .select(`
@@ -68,20 +71,43 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
           .eq('store_id', effectiveStoreId)
           .order('full_name', { ascending: true })
 
-        const { data, error } = await query
+        const { data: allStoreEmployees, error } = await query
 
         if (error) {
           console.error('useEmployees: Fetch error:', error)
           throw error
         }
 
-        regularEmployees = (data || []).map(emp => ({
-          ...emp,
-          isDelegated: false
-        }))
+        // ✅ FIX: Get list of employees currently delegated away from this store
+        const { data: delegatedAwayIds, error: delegationError } = await supabase
+          .from('employee_delegations')
+          .select('employee_id')
+          .eq('from_store_id', effectiveStoreId)
+          .eq('status', 'active')
+          .lte('valid_from', now)
+          .gte('valid_until', now)
+
+        if (delegationError) {
+          console.error('useEmployees: Delegation check error:', delegationError)
+          // Don't throw - just log and continue
+        }
+
+        const delegatedAwayEmployeeIds = new Set(
+          delegatedAwayIds?.map(d => d.employee_id) || []
+        )
+
+        // ✅ FIX: Filter out employees who are currently delegated away
+        regularEmployees = (allStoreEmployees || [])
+          .filter(emp => !delegatedAwayEmployeeIds.has(emp.id))
+          .map(emp => ({
+            ...emp,
+            isDelegated: false
+          }))
+
+        console.log('useEmployees: Filtered out', delegatedAwayEmployeeIds.size, 'delegated away employees')
       }
 
-      // 2. Fetch delegated employees (if includeDelegated is true)
+      // 2. Fetch delegated employees (delegated TO this store) - unchanged
       if (includeDelegated && effectiveStoreId && effectiveStoreId.trim() !== '') {
         const now = new Date().toISOString()
         
@@ -141,7 +167,12 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
         )
       }
 
-      console.log('useEmployees: Fetched', regularEmployees.length, 'regular and', delegatedEmployees.length, 'delegated employees')
+      console.log('useEmployees: Final result:', {
+        regular: regularEmployees.length,
+        delegated: delegatedEmployees.length,
+        total: allEmployees.length
+      })
+      
       return allEmployees
 
     },

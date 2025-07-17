@@ -60,9 +60,9 @@ export function ProtectedRoute({
 
     // If not requiring auth but user exists, redirect to dashboard
     if (!requireAuth && user) {
-      console.log('ProtectedRoute: Redirecting to dashboard - user exists')
+      console.log('ProtectedRoute: Redirecting to timesheets - user exists')
       setHasRedirected(true)
-      router.replace('/dashboard')
+      router.replace('/timesheets')
       return
     }
   }, [user, loading, error, requireAuth, pathname, hasRedirected, router])
