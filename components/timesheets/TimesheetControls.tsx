@@ -112,12 +112,22 @@ export function TimesheetControls({
     }
     onUpdate(updates)
   }
+// In components/timesheets/TimesheetControls.tsx
 
   const handleStoreChange = (storeId: string) => {
-    setSelectedStoreId(storeId)
-    setSelectedEmployeeIds([])
-    onUpdate({ storeId: storeId, entries: [] })
-  }
+    // Find the full store object from the state
+    const selectedStore = stores.find(store => store.id === storeId);
+
+    setSelectedStoreId(storeId);
+    setSelectedEmployeeIds([]);
+    
+    // ✅ CORRECTED: Pass both the storeId and the zoneId
+    onUpdate({ 
+      storeId: storeId, 
+      zoneId: selectedStore ? selectedStore.zone_id : undefined, // Look up the zone_id
+      entries: [] 
+    });
+  };
 
   const handleEmployeeSelection = (employeeIds: string[]) => {
     const selectedEmployees = employees.filter(emp => employeeIds.includes(emp.id))

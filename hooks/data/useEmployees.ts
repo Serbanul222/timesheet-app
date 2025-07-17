@@ -1,4 +1,4 @@
-// hooks/data/useEmployees.ts - FIXED: Exclude employees delegated away
+// hooks/data/useEmployees.ts - FIXED: Enhanced delegation support for timesheet saving
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
@@ -9,7 +9,7 @@ import { Database } from '@/types/database'
 
 type Employee = Database['public']['Tables']['employees']['Row']
 
-// Extended employee type with related data and delegation info
+// ✅ ENHANCED: Employee type with delegation context
 export interface EmployeeWithDetails extends Employee {
   store?: {
     id: string
@@ -23,15 +23,19 @@ export interface EmployeeWithDetails extends Employee {
     id: string
     from_store_id: string
     from_store_name: string
+    to_store_id: string
     valid_until: string
     delegated_by_name: string
   }
   isDelegated?: boolean
+  // ✅ NEW: Critical fields for timesheet saving
+  effectiveStoreId: string // The store where timesheets should be saved
+  effectiveZoneId: string  // The zone for timesheet context
 }
 
 interface UseEmployeesOptions {
-  storeId?: string // Required store filter for efficient fetching
-  includeDelegated?: boolean // Include employees delegated to this store
+  storeId?: string
+  includeDelegated?: boolean
 }
 
 export function useEmployees(options: UseEmployeesOptions = {}) {
@@ -39,10 +43,9 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
   const permissions = usePermissions()
   const { storeId, includeDelegated = true } = options
 
-  // Determine the effective store ID to fetch employees for
+  // Determine the effective store ID
   const effectiveStoreId = storeId || (profile?.role === 'STORE_MANAGER' ? profile.store_id : '')
   
-  // Query to fetch employees - only when store is selected
   const {
     data: employees = [],
     isLoading,
@@ -51,17 +54,17 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
   } = useQuery({
     queryKey: ['employees', effectiveStoreId, profile?.role, profile?.zone_id, includeDelegated],
     queryFn: async (): Promise<EmployeeWithDetails[]> => {
-      console.log('useEmployees: Fetching employees for store:', effectiveStoreId, 'includeDelegated:', includeDelegated)
+      console.log('🔍 useEmployees: Fetching for store:', effectiveStoreId, 'includeDelegated:', includeDelegated)
       
       let regularEmployees: EmployeeWithDetails[] = []
       let delegatedEmployees: EmployeeWithDetails[] = []
 
-      // 1. ✅ FIX: Fetch regular employees EXCLUDING those currently delegated away
+      // ✅ STEP 1: Fetch regular employees (excluding those delegated away)
       if (effectiveStoreId && effectiveStoreId.trim() !== '') {
         const now = new Date().toISOString()
         
-        // First, get all employees assigned to this store
-        let query = supabase
+        // Get all employees assigned to this store
+        const { data: allStoreEmployees, error } = await supabase
           .from('employees')
           .select(`
             *,
@@ -71,14 +74,12 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
           .eq('store_id', effectiveStoreId)
           .order('full_name', { ascending: true })
 
-        const { data: allStoreEmployees, error } = await query
-
         if (error) {
-          console.error('useEmployees: Fetch error:', error)
+          console.error('❌ useEmployees: Employee fetch error:', error)
           throw error
         }
 
-        // ✅ FIX: Get list of employees currently delegated away from this store
+        // Get employees currently delegated away from this store
         const { data: delegatedAwayIds, error: delegationError } = await supabase
           .from('employee_delegations')
           .select('employee_id')
@@ -88,26 +89,27 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
           .gte('valid_until', now)
 
         if (delegationError) {
-          console.error('useEmployees: Delegation check error:', delegationError)
-          // Don't throw - just log and continue
+          console.error('⚠️ useEmployees: Delegation check error:', delegationError)
         }
 
         const delegatedAwayEmployeeIds = new Set(
           delegatedAwayIds?.map(d => d.employee_id) || []
         )
 
-        // ✅ FIX: Filter out employees who are currently delegated away
+        // ✅ ENHANCED: Create regular employees with proper context
         regularEmployees = (allStoreEmployees || [])
           .filter(emp => !delegatedAwayEmployeeIds.has(emp.id))
           .map(emp => ({
             ...emp,
-            isDelegated: false
+            isDelegated: false,
+            effectiveStoreId: emp.store_id, // Use original store
+            effectiveZoneId: emp.zone_id    // Use original zone
           }))
 
-        console.log('useEmployees: Filtered out', delegatedAwayEmployeeIds.size, 'delegated away employees')
+        console.log('✅ Regular employees:', regularEmployees.length)
       }
 
-      // 2. Fetch delegated employees (delegated TO this store) - unchanged
+      // ✅ STEP 2: Fetch delegated employees (delegated TO this store)
       if (includeDelegated && effectiveStoreId && effectiveStoreId.trim() !== '') {
         const now = new Date().toISOString()
         
@@ -117,6 +119,7 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
             id,
             employee_id,
             from_store_id,
+            to_store_id,
             valid_until,
             employee:employees(
               *,
@@ -132,9 +135,9 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
           .gte('valid_until', now)
 
         if (delegationError) {
-          console.error('useEmployees: Delegation fetch error:', delegationError)
-          // Don't throw error for delegations, just log and continue
+          console.error('❌ useEmployees: Delegation fetch error:', delegationError)
         } else if (delegationsData) {
+          // ✅ ENHANCED: Create delegated employees with proper context
           delegatedEmployees = delegationsData
             .filter(delegation => delegation.employee)
             .map(delegation => ({
@@ -143,47 +146,76 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
                 id: delegation.id,
                 from_store_id: delegation.from_store_id,
                 from_store_name: delegation.from_store?.name || 'Unknown Store',
+                to_store_id: delegation.to_store_id,
                 valid_until: delegation.valid_until,
                 delegated_by_name: delegation.delegated_by_user?.full_name || 'Unknown'
               },
-              isDelegated: true
+              isDelegated: true,
+              // ✅ CRITICAL: For delegated employees, use the delegation target store
+              effectiveStoreId: delegation.to_store_id,
+              effectiveZoneId: delegation.employee.zone_id // Keep original zone for context
             }))
+
+          console.log('🔄 Delegated employees:', delegatedEmployees.length)
         }
       }
 
-      // 3. Apply role-based filtering for additional security
+      // ✅ STEP 3: Apply role-based filtering
       let allEmployees = [...regularEmployees, ...delegatedEmployees]
 
       if (profile?.role === 'ASM' && profile.zone_id) {
-        // ASM can see employees in their zone (including delegated ones)
         allEmployees = allEmployees.filter(emp => 
           emp.zone_id === profile.zone_id || emp.delegation
         )
       } else if (profile?.role === 'STORE_MANAGER' && profile.store_id) {
-        // Store managers can see their employees + employees delegated to their store
         allEmployees = allEmployees.filter(emp => 
           emp.store_id === profile.store_id || 
           (emp.delegation && effectiveStoreId === profile.store_id)
         )
       }
 
-      console.log('useEmployees: Final result:', {
+      console.log('✅ useEmployees final result:', {
         regular: regularEmployees.length,
         delegated: delegatedEmployees.length,
-        total: allEmployees.length
+        total: allEmployees.length,
+        storeId: effectiveStoreId
       })
       
       return allEmployees
 
     },
     enabled: !!user && !!profile && permissions.canViewEmployees,
-    staleTime: 1000 * 60 * 2, // 2 minutes (shorter for delegation updates)
+    staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 1
   })
 
   // Separate regular and delegated employees for display
   const regularEmployees = employees.filter(emp => !emp.isDelegated)
   const delegatedEmployees = employees.filter(emp => emp.isDelegated)
+
+  // ✅ NEW: Validation helper for timesheet saving
+  const validateEmployeeForTimesheet = (employeeId: string) => {
+    const employee = employees.find(emp => emp.id === employeeId)
+    if (!employee) {
+      return { valid: false, error: 'Employee not found' }
+    }
+
+    // Check if employee has proper context for saving
+    if (!employee.effectiveStoreId) {
+      return { valid: false, error: 'Employee missing store context' }
+    }
+
+    return { 
+      valid: true, 
+      employee,
+      context: {
+        isDelegated: employee.isDelegated || false,
+        effectiveStoreId: employee.effectiveStoreId,
+        effectiveZoneId: employee.effectiveZoneId,
+        originalStoreId: employee.store_id
+      }
+    }
+  }
 
   return {
     employees,
@@ -201,6 +233,26 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
     // Helper functions
     getEmployeeById: (id: string) => employees.find(emp => emp.id === id),
     isDelegatedEmployee: (id: string) => employees.find(emp => emp.id === id)?.isDelegated || false,
-    getDelegationInfo: (id: string) => employees.find(emp => emp.id === id)?.delegation
+    getDelegationInfo: (id: string) => employees.find(emp => emp.id === id)?.delegation,
+    
+    // ✅ NEW: Validation for timesheet saving
+    validateEmployeeForTimesheet,
+    
+    // ✅ NEW: Get employee context for saving
+    getEmployeeSaveContext: (id: string) => {
+      const employee = employees.find(emp => emp.id === id)
+      if (!employee) return null
+      
+      return {
+        employeeId: employee.id,
+        employeeName: employee.full_name,
+        position: employee.position || 'Staff',
+        isDelegated: employee.isDelegated || false,
+        effectiveStoreId: employee.effectiveStoreId,
+        effectiveZoneId: employee.effectiveZoneId,
+        originalStoreId: employee.store_id,
+        delegation: employee.delegation
+      }
+    }
   }
 }

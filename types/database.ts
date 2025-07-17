@@ -1,4 +1,4 @@
-// types/database.ts - Optimized to reduce bundle size
+// types/database.ts - Updated for multi-employee timesheets
 export type Json =
   | string
   | number
@@ -14,33 +14,38 @@ export const DELEGATION_STATUSES = ['active', 'expired', 'revoked', 'pending'] a
 export type UserRole = typeof USER_ROLES[number]
 export type DelegationStatus = typeof DELEGATION_STATUSES[number]
 
-// Optimize DailyEntry with minimal structure
+// ✅ NEW: Multi-employee timesheet structure
+export interface TimesheetEmployeeData {
+  name: string
+  position: string
+  employee_code?: string
+  days: Record<string, {
+    timeInterval: string
+    hours: number
+    status: string
+    notes: string
+  }>
+}
+
+export interface TimesheetDailyEntries {
+  employees: Record<string, TimesheetEmployeeData> // key = employee_id
+  metadata: {
+    gridId: string
+    gridSessionId: string
+    createdAt: string
+    totalEmployees: number
+    storeId: string
+    zoneName?: string
+    storeName?: string
+    periodDays: number
+  }
+}
+
+// Legacy DailyEntry for backward compatibility (if needed)
 export interface DailyEntry {
   readonly date: string;
   readonly hours?: string | null;
   readonly status?: 'work' | 'off' | 'CO' | 'other' | null;
-}
-
-// Use interface merging instead of large single interface
-interface BaseGridEntry {
-  timeInterval: string;
-  hours: number;
-  status: string;
-  notes: string;
-}
-
-interface GridMetadata {
-  _metadata?: {
-    employeeName: string;
-    employeeId: string;
-    position?: string;
-    employeeCode?: string;
-    transformedAt: string;
-  };
-}
-
-export type GridDailyEntries = GridMetadata & {
-  [dateKey: string]: BaseGridEntry;
 }
 
 // Break down Database interface into smaller, more manageable pieces
@@ -137,27 +142,54 @@ namespace DatabaseTables {
     Update: Partial<Omit<EmployeeDelegations['Row'], 'id'>>
   }
 
+  // ✅ UPDATED: Timesheets table for multi-employee support
   export interface Timesheets {
     Row: {
       id: string
-      employee_id: string
+      // ❌ REMOVED: employee_id (no longer single employee)
+      // ❌ REMOVED: employee_name (stored in daily_entries now)
       store_id: string
       zone_id: string
       period_start: string
       period_end: string
       total_hours: number
+      employee_count: number // ✅ NEW: number of employees in this timesheet
+      grid_title: string | null // ✅ NEW: optional title for the timesheet grid
       notes: string | null
       created_by: string | null
       created_at: string
       updated_at: string
-      daily_entries: DailyEntry[] | null
-      employee_name: string | null
+      daily_entries: Json | null // ✅ CORRECTED TYPE
     }
     Insert: Omit<Timesheets['Row'], 'id' | 'created_at' | 'updated_at'> & {
       id?: string
       total_hours?: number
+      employee_count?: number
     }
     Update: Partial<Omit<Timesheets['Row'], 'id'>>
+  }
+
+  // ✅ NEW: Absence types table (if not already in your schema)
+  export interface AbsenceTypes {
+    Row: {
+      id: string
+      code: string
+      name: string
+      description: string | null
+      is_active: boolean
+      requires_hours: boolean
+      color_class: string | null
+      sort_order: number
+      created_at: string
+      updated_at: string
+    }
+    Insert: Omit<AbsenceTypes['Row'], 'id' | 'created_at' | 'updated_at'> & {
+      id?: string
+      is_active?: boolean
+      requires_hours?: boolean
+      sort_order?: number
+    }
+    Update: Partial<Omit<AbsenceTypes['Row'], 'id'>>
   }
 }
 
@@ -171,6 +203,7 @@ export interface Database {
       zones: DatabaseTables.Zones
       employee_delegations: DatabaseTables.EmployeeDelegations
       timesheets: DatabaseTables.Timesheets
+      absence_types: DatabaseTables.AbsenceTypes // ✅ NEW: if you have this table
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -189,3 +222,55 @@ export type StoreRow = DatabaseTables.Stores['Row']
 export type ZoneRow = DatabaseTables.Zones['Row']
 export type DelegationRow = DatabaseTables.EmployeeDelegations['Row']
 export type TimesheetRow = DatabaseTables.Timesheets['Row']
+export type AbsenceTypeRow = DatabaseTables.AbsenceTypes['Row']
+
+// ✅ NEW: Helper types for working with multi-employee timesheets
+export interface TimesheetWithDetails extends TimesheetRow {
+  store?: { id: string; name: string }
+  zone?: { id: string; name: string }
+  created_by_user?: { id: string; full_name: string }
+  // Note: employees are now stored in daily_entries.employees
+}
+
+// ✅ NEW: Type for reconstructing grid from database
+export interface TimesheetGridFromDB {
+  timesheetId: string
+  gridTitle: string | null
+  storeId: string
+  storeName?: string
+  zoneId: string
+  zoneName?: string
+  periodStart: string
+  periodEnd: string
+  employeeCount: number
+  totalHours: number
+  employees: Array<{
+    id: string
+    name: string
+    position: string
+    employee_code?: string
+    totalHours: number
+    daysData: Record<string, {
+      timeInterval: string
+      hours: number
+      status: string
+      notes: string
+    }>
+  }>
+  createdAt: string
+  updatedAt: string
+  createdBy?: string
+}
+
+// ✅ NEW: Type for timesheet summary/list view
+export interface TimesheetSummary {
+  id: string
+  gridTitle: string
+  storeName: string
+  employeeCount: number
+  totalHours: number
+  periodStart: string
+  periodEnd: string
+  createdAt: string
+  lastUpdated: string
+}

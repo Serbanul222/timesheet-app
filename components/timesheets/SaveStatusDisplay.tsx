@@ -1,4 +1,4 @@
-// components/timesheet/SaveStatusDisplay.tsx - Updated to show UPSERT info
+// components/timesheets/SaveStatusDisplay.tsx - Updated for multi-employee timesheets
 'use client'
 
 import { SaveResult } from '@/lib/services/timesheetSaveService'
@@ -11,7 +11,7 @@ interface SaveStatusDisplayProps {
 }
 
 /**
- * Component to display detailed save results with update/create breakdown
+ * ✅ UPDATED: Component to display multi-employee timesheet save results
  */
 export function SaveStatusDisplay({ 
   result, 
@@ -21,16 +21,14 @@ export function SaveStatusDisplay({
   if (!result) return null
 
   const hasErrors = result.errors.length > 0
-  const isPartialSuccess = result.success && hasErrors
-  const updatedCount = result.savedTimesheets.filter(t => t.isUpdate).length
-  const createdCount = result.savedTimesheets.filter(t => !t.isUpdate).length
+  const isSuccess = result.success && result.timesheetId !== null
 
   return (
     <div className={`rounded-lg border p-4 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          {result.success ? (
+          {isSuccess ? (
             <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
@@ -41,9 +39,11 @@ export function SaveStatusDisplay({
           )}
           
           <h3 className={`font-medium ${
-            result.success ? 'text-green-800' : 'text-red-800'
+            isSuccess ? 'text-green-800' : 'text-red-800'
           }`}>
-            {isPartialSuccess ? 'Partially Saved' : result.success ? 'Save Successful' : 'Save Failed'}
+            {hasErrors && isSuccess ? 'Partially Saved' : 
+             isSuccess ? (result.isUpdate ? 'Timesheet Updated' : 'Timesheet Created') : 
+             'Save Failed'}
           </h3>
         </div>
         
@@ -59,75 +59,35 @@ export function SaveStatusDisplay({
         </Button>
       </div>
 
-      {/* Summary with Session Info */}
-      <div className={`p-3 rounded-md mb-3 ${
-        result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-      } border`}>
-        <div className="text-sm space-y-1">
-          <p className={result.success ? 'text-green-700' : 'text-red-700'}>
-            <span className="font-medium">{result.savedCount}</span> timesheet{result.savedCount !== 1 ? 's' : ''} processed
-            {hasErrors && (
-              <>, <span className="font-medium text-red-600">{result.failedCount}</span> failed</>
-            )}
-          </p>
-          
-          {/* ✅ NEW: Show update vs create breakdown */}
-          {result.success && (
+      {/* Success Summary */}
+      {isSuccess && (
+        <div className={`p-3 rounded-md mb-3 ${
+          hasErrors ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'
+        } border`}>
+          <div className="text-sm space-y-1">
+            <p className={hasErrors ? 'text-yellow-700' : 'text-green-700'}>
+              <span className="font-medium">
+                {result.isUpdate ? 'Updated' : 'Created'} timesheet
+              </span> for <span className="font-medium">{result.employeeCount}</span> employee{result.employeeCount !== 1 ? 's' : ''}
+            </p>
+            
             <div className="text-xs text-gray-600 space-y-1">
-              {createdCount > 0 && (
-                <p>• <span className="font-medium">{createdCount}</span> new timesheet{createdCount !== 1 ? 's' : ''} created</p>
-              )}
-              {updatedCount > 0 && (
-                <p>• <span className="font-medium">{updatedCount}</span> existing timesheet{updatedCount !== 1 ? 's' : ''} updated</p>
-              )}
+              <p>• Total hours: <span className="font-medium text-blue-600">{result.totalHours}h</span></p>
+              <p>• Timesheet ID: <span className="font-mono text-xs">{result.timesheetId}</span></p>
               <p>• Session: <span className="font-mono text-xs">{result.sessionId.slice(-12)}</span></p>
+              {result.isUpdate && (
+                <p>• <span className="text-blue-600">Updated existing timesheet</span></p>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Success List with Update/Create Icons */}
-      {result.savedTimesheets.length > 0 && (
-        <div className="mb-3">
-          <h4 className="text-sm font-medium text-green-800 mb-2">
-            ✓ Successfully Processed ({result.savedTimesheets.length})
-          </h4>
-          <div className="space-y-1">
-            {result.savedTimesheets.map(saved => (
-              <div 
-                key={saved.employeeId}
-                className="text-sm text-green-700 bg-green-50 px-2 py-1 rounded flex items-center justify-between"
-              >
-                <div className="flex items-center space-x-2">
-                  {/* ✅ NEW: Show update vs create icon */}
-                  {saved.isUpdate ? (
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  )}
-                  <span>{saved.employeeName}</span>
-                  <span className="text-xs text-gray-500">
-                    {saved.isUpdate ? 'updated' : 'created'}
-                  </span>
-                </div>
-                <span className="text-xs font-mono text-green-600">
-                  {saved.timesheetId.slice(-8)}
-                </span>
-              </div>
-            ))}
           </div>
         </div>
       )}
 
       {/* Error List */}
       {hasErrors && (
-        <div>
+        <div className="mb-3">
           <h4 className="text-sm font-medium text-red-800 mb-2">
-            ⚠ Failed to Save ({result.errors.length})
+            ⚠ Employee Errors ({result.errors.length})
           </h4>
           <div className="space-y-2">
             {result.errors.map((error, index) => (
@@ -143,6 +103,55 @@ export function SaveStatusDisplay({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Complete Failure */}
+      {!isSuccess && (
+        <div className="p-3 rounded-md bg-red-50 border border-red-200">
+          <div className="text-sm text-red-700">
+            <p className="font-medium">Failed to save timesheet</p>
+            <p className="mt-1">
+              No timesheet was created. Please check the data and try again.
+            </p>
+            {hasErrors && (
+              <p className="mt-2 text-xs">
+                {result.errors.length} employee{result.errors.length !== 1 ? 's' : ''} had validation errors.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      {isSuccess && (
+        <div className="mt-4 pt-3 border-t border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-500">
+              {result.isUpdate ? 'Timesheet has been updated' : 'New timesheet created successfully'}
+            </div>
+            <div className="flex space-x-2">
+              {hasErrors && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Could trigger a retry or show detailed error info
+                    console.log('Show error details:', result.errors)
+                  }}
+                >
+                  View Details
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDismiss}
+              >
+                Continue
+              </Button>
+            </div>
           </div>
         </div>
       )}
