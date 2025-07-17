@@ -1,3 +1,4 @@
+// components/layout/Header.tsx - Updated with Reports link
 'use client'
 
 import { useState } from 'react'
@@ -30,9 +31,9 @@ export function Header({ className = '' }: HeaderProps) {
       show: permissions.canViewEmployees
     },
     {
-      name: 'Reports',
+      name: 'Reports', // ✅ NEW: Reports navigation
       href: '/reports',
-      show: permissions.canExportTimesheets
+      show: permissions.canViewTimesheets // Same permission as timesheets
     },
     {
       name: 'Admin',
