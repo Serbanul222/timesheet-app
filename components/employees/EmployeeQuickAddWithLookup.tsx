@@ -20,6 +20,10 @@ const employeeSchema = z.object({
   employee_code: z.string().optional().transform(val => val === '' ? null : val),
   store_id: z.string().min(1, 'Store is required'),
   zone_id: z.string().min(1, 'Zone is required')
+}).superRefine((data, ctx) => {
+  // ✅ NEW: Skip validation for greyed out fields when employee is found
+  // This will be handled in the component logic
+  return true
 })
 
 type EmployeeFormData = z.infer<typeof employeeSchema>
@@ -57,7 +61,12 @@ export function EmployeeQuickAddWithLookup({
       // Auto-populate form fields
       setValue('email', employee.email)
       setValue('full_name', employee.fullName)
+      
+      // Use the exact position from the database (no mapping - whatever job_name is)
       setValue('position', employee.position)
+      
+      // Set employee code using just the customer ID number (no prefix)
+      setValue('employee_code', employee.customerId.toString())
       
       toast.success('Employee found in Lensa database!', {
         description: `${employee.fullName} - ${employee.position}`
@@ -97,6 +106,34 @@ export function EmployeeQuickAddWithLookup({
 
   const watchEmail = watch('email')
   const watchStoreId = watch('store_id')
+
+  // ✅ NEW: Helper function to determine if field should be greyed out
+  const isFieldGreyedOut = (fieldName: keyof EmployeeFormData): boolean => {
+    if (!foundEmployee) return false
+    
+    // Grey out these fields when employee is found from lookup
+    // NOTE: Email should remain editable for new lookups
+    const greyedOutFields: (keyof EmployeeFormData)[] = [
+      'full_name', 
+      'position', 
+      'employee_code', 
+      'zone_id'  // zone is always greyed out as it's auto-selected based on store
+    ]
+    
+    return greyedOutFields.includes(fieldName)
+  }
+
+  // ✅ NEW: Helper function to get field styling
+  const getFieldStyling = (fieldName: keyof EmployeeFormData): string => {
+    if (isFieldGreyedOut(fieldName)) {
+      return 'bg-gray-100 text-gray-600 cursor-not-allowed border-gray-300'
+    }
+    if (foundEmployee && !isFieldGreyedOut(fieldName)) {
+      // Non-greyed fields when employee is found get a subtle highlight
+      return 'bg-blue-50 border-blue-300'
+    }
+    return 'bg-white'
+  }
 
   // Fetch data
   useEffect(() => {
@@ -152,6 +189,14 @@ export function EmployeeQuickAddWithLookup({
     }
   }, [watchStoreId, stores, setValue])
 
+  // Auto-populate position when employee is found
+  useEffect(() => {
+    if (foundEmployee && foundEmployee.position) {
+      console.log('Setting position via useEffect:', foundEmployee.position)
+      setValue('position', foundEmployee.position)
+    }
+  }, [foundEmployee, setValue])
+
   // Handle email lookup
   const handleEmailLookup = async () => {
     if (!watchEmail || !isValidEmail(watchEmail)) {
@@ -163,30 +208,65 @@ export function EmployeeQuickAddWithLookup({
     await lookupEmployee(watchEmail)
   }
 
+  // ✅ NEW: Handle Enter key in email field
+  const handleEmailKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault() // Prevent form submission
+      e.stopPropagation()
+      handleEmailLookup()
+    }
+  }
+
   // Handle manual entry mode
   const handleManualEntry = () => {
     setIsLookupMode(false)
     setFoundEmployee(null)
-    clearResults()
+    if (clearResults) {
+      clearResults()
+    }
     
     // Clear auto-populated fields except email
     setValue('full_name', '')
     setValue('position', '')
+    setValue('employee_code', '')
   }
 
   const onSubmit = async (data: EmployeeFormData) => {
     try {
+      console.log('Submitting employee data:', data)
+      
+      const insertData = {
+        ...data,
+        // Use the employee_code as set (either from lookup or manual entry)
+        employee_code: data.employee_code || (foundEmployee ? foundEmployee.customerId.toString() : null)
+      }
+      
+      console.log('Insert data:', insertData)
+
       const { data: newEmployee, error } = await supabase
         .from('employees')
-        .insert({
-          ...data,
-          // Add source information if found via lookup
-          employee_code: data.employee_code || (foundEmployee ? `LENSA_${Date.now()}` : null)
-        })
+        .insert(insertData)
         .select('*, store:stores(id, name), zone:zones(id, name)')
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error details:', error)
+        
+        // Provide more specific error messages
+        let errorMessage = 'Failed to create employee'
+        if (error.code === '23505') {
+          errorMessage = 'Employee with this email already exists'
+        } else if (error.code === '23503') {
+          errorMessage = 'Invalid store or zone selected'
+        } else if (error.message) {
+          errorMessage = error.message
+        }
+        
+        toast.error(errorMessage, {
+          description: `Error code: ${error.code || 'Unknown'}`
+        })
+        return
+      }
 
       toast.success(`Employee ${data.full_name} created successfully`, {
         description: foundEmployee ? 'Created from Lensa database lookup' : 'Created manually'
@@ -194,8 +274,10 @@ export function EmployeeQuickAddWithLookup({
       
       onEmployeeAdded(newEmployee)
     } catch (error) {
-      toast.error('Failed to create employee')
       console.error('Employee creation error:', error)
+      toast.error('Failed to create employee', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred'
+      })
     }
   }
 
@@ -227,7 +309,7 @@ export function EmployeeQuickAddWithLookup({
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Email Input with Lookup */}
+        {/* ✅ ENHANCED: Email Input with Lookup */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-900">Email Address *</label>
           <div className="flex space-x-2">
@@ -236,6 +318,9 @@ export function EmployeeQuickAddWithLookup({
               {...register('email')}
               error={errors.email?.message}
               containerClassName="flex-1"
+              className={getFieldStyling('email')}
+              disabled={false} // ✅ FIXED: Email should always be editable
+              onKeyDown={handleEmailKeyDown} // ✅ NEW: Handle Enter key
               rightIcon={
                 isValidEmail(watchEmail) ? (
                   <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,24 +344,31 @@ export function EmployeeQuickAddWithLookup({
             </Button>
           </div>
           
-          {/* Lookup Status */}
+          {/* ✅ ENHANCED: Lookup Status with better visual feedback */}
           {foundEmployee && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-              <div className="flex items-center">
-                <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm text-green-800">
-                  Found: <strong>{foundEmployee.fullName}</strong> - {foundEmployee.position}
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm text-green-800">
+                    Found: <strong>{foundEmployee.fullName}</strong> - {foundEmployee.position}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleManualEntry}
+                  className="text-xs text-green-600 hover:text-green-800 underline"
+                >
+                  Edit manually
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleManualEntry}
-                className="text-xs text-green-600 hover:text-green-800 mt-1"
-              >
-                Switch to manual entry
-              </button>
+              <p className="text-xs text-green-600 mt-1">
+                🔒 Employee details are auto-filled and locked. Only store can be changed.
+                <br />
+                📧 You can search for a different employee by changing the email above.
+              </p>
             </div>
           )}
           
@@ -292,48 +384,88 @@ export function EmployeeQuickAddWithLookup({
               </div>
             </div>
           )}
+          
+          {/* ✅ REMOVED: Helper text for email field since it's always editable */}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Full Name *"
-            placeholder="Employee name"
-            {...register('full_name')}
-            error={errors.full_name?.message}
-            className={foundEmployee ? 'bg-green-50 border-green-300' : ''}
-          />
+          {/* ✅ ENHANCED: Full Name - greyed out when found */}
+          <div>
+            <Input
+              label="Full Name *"
+              placeholder="Employee name"
+              {...register('full_name')}
+              error={errors.full_name?.message}
+              className={getFieldStyling('full_name')}
+              disabled={isFieldGreyedOut('full_name')}
+            />
+            {isFieldGreyedOut('full_name') && (
+              <p className="text-xs text-gray-500 mt-1">
+                ℹ️ Auto-filled from Lensa database
+              </p>
+            )}
+          </div>
           
-          <Input
-            label="Employee Code"
-            placeholder="Optional ID"
-            {...register('employee_code')}
-          />
+          {/* ✅ ENHANCED: Employee Code - greyed out when found */}
+          <div>
+            <Input
+              label="Employee Code"
+              placeholder="Optional ID"
+              {...register('employee_code')}
+              className={getFieldStyling('employee_code')}
+              disabled={isFieldGreyedOut('employee_code')}
+            />
+            {isFieldGreyedOut('employee_code') && (
+              <p className="text-xs text-gray-500 mt-1">
+                ℹ️ Auto-filled from Lensa customer ID
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
+          {/* ✅ ENHANCED: Position - greyed out when found */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">Position *</label>
             <select
               {...register('position')}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${
-                errors.position ? 'border-red-500' : ''
-              } ${foundEmployee ? 'bg-green-50 border-green-300' : ''}`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                getFieldStyling('position')
+              } ${errors.position ? 'border-red-500' : ''}`}
+              disabled={isFieldGreyedOut('position')}
             >
               <option value="">Select...</option>
               {positions.map(pos => (
                 <option key={pos} value={pos}>{pos}</option>
               ))}
+              {/* Always show the exact job_name from external DB as an option */}
+              {foundEmployee && foundEmployee.position && (
+                <option key={`db-${foundEmployee.position}`} value={foundEmployee.position} className="bg-blue-50">
+                  {foundEmployee.position} {!positions.includes(foundEmployee.position)}
+                </option>
+              )}
             </select>
             {errors.position && <p className="text-sm text-red-600 mt-1">{errors.position.message}</p>}
+            {isFieldGreyedOut('position') && (
+              <p className="text-xs text-gray-500 mt-1">
+                ℹ️ Auto-filled from Lensa DB: "{foundEmployee.position}"
+              </p>
+            )}
           </div>
 
+          {/* ✅ ENHANCED: Store - highlighted when employee is found (this is the editable field) */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-1">Store *</label>
+            <label className="block text-sm font-medium text-gray-900 mb-1">
+              Store *
+              {foundEmployee && (
+                <span className="text-blue-600 text-xs ml-1">(📝 Editable)</span>
+              )}
+            </label>
             <select
               {...register('store_id')}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${
-                errors.store_id ? 'border-red-500' : ''
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                getFieldStyling('store_id')
+              } ${errors.store_id ? 'border-red-500' : ''}`}
               disabled={profile?.role === 'STORE_MANAGER'}
             >
               <option value="">Select...</option>
@@ -342,13 +474,19 @@ export function EmployeeQuickAddWithLookup({
               ))}
             </select>
             {errors.store_id && <p className="text-sm text-red-600 mt-1">{errors.store_id.message}</p>}
+            {foundEmployee && (
+              <p className="text-xs text-blue-600 mt-1">
+                💡 Select which store to assign this employee to
+              </p>
+            )}
           </div>
 
+          {/* ✅ ENHANCED: Zone - always greyed out (auto-selected) */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">Zone *</label>
             <select
               {...register('zone_id')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
+              className={`w-full px-3 py-2 border rounded-md ${getFieldStyling('zone_id')}`}
               disabled
             >
               <option value="">Auto-selected</option>
@@ -356,7 +494,9 @@ export function EmployeeQuickAddWithLookup({
                 <option key={zone.id} value={zone.id}>{zone.name}</option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Based on store</p>
+            <p className="text-xs text-gray-500 mt-1">
+              ℹ️ Auto-selected based on store choice
+            </p>
           </div>
         </div>
 
@@ -376,3 +516,5 @@ export function EmployeeQuickAddWithLookup({
     </div>
   )
 }
+
+export default EmployeeQuickAddWithLookup
