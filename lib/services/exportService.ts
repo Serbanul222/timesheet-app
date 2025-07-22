@@ -147,14 +147,47 @@ export class ExportService {
     return includeEmptyDays ? 'off' : ''
   }
 
+  private static consolidateTimesheets(timesheets: TimesheetRow[]): TimesheetRow[] {
+  const storeMap = new Map<string, TimesheetRow>()
+  
+  timesheets.forEach(timesheet => {
+    const storeKey = `${timesheet.store_id}_${timesheet.zone_id}`
+    
+    if (storeMap.has(storeKey)) {
+      // Merge daily_entries from overlapping periods
+      const existing = storeMap.get(storeKey)!
+      existing.daily_entries = {
+        ...existing.daily_entries,
+        ...timesheet.daily_entries
+      }
+      // Update period to encompass both ranges
+      if (timesheet.period_start < existing.period_start) {
+        existing.period_start = timesheet.period_start
+      }
+      if (timesheet.period_end > existing.period_end) {
+        existing.period_end = timesheet.period_end
+      }
+    } else {
+      storeMap.set(storeKey, { ...timesheet })
+    }
+  })
+  
+  return Array.from(storeMap.values())
+}
+
   // Generate Excel with proper date filtering
-  private static async generateExcel(timesheets: TimesheetRow[], options: ExportOptions): Promise<ExportResult> {
-    try {
-      console.log('📊 Starting Excel generation with timesheets:', timesheets.length)
-      
-      const XLSX = await import('xlsx')
-      const workbook = XLSX.utils.book_new()
-      const processedTimesheets = this.processTimesheetGrid(timesheets, options)
+ private static async generateExcel(timesheets: TimesheetRow[], options: ExportOptions): Promise<ExportResult> {
+  try {
+    console.log('📊 Starting Excel generation with timesheets:', timesheets.length)
+    
+    const XLSX = await import('xlsx')
+    const workbook = XLSX.utils.book_new()
+    
+    // Consolidate overlapping timesheets
+    const consolidatedTimesheets = this.consolidateTimesheets(timesheets)
+    console.log(`🔄 Consolidated ${timesheets.length} timesheets into ${consolidatedTimesheets.length}`)
+    
+    const processedTimesheets = this.processTimesheetGrid(consolidatedTimesheets, options)
 
       processedTimesheets.forEach((timesheet, index) => {
         console.log(`\n📄 Creating Excel sheet ${index + 1}: ${timesheet.storeName}`)
