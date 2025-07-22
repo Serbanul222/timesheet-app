@@ -1,4 +1,4 @@
-// components/timesheets/cells/TimeIntervalInput.tsx
+// components/timesheets/cells/TimeIntervalInput.tsx - ENHANCED: Better display of saved intervals
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -19,7 +19,7 @@ interface TimeIntervalInputProps {
 }
 
 /**
- * Time interval input with real-time validation
+ * Time interval input with real-time validation and proper display of saved intervals
  */
 export function TimeIntervalInput({
   timeInterval,
@@ -108,16 +108,41 @@ export function TimeIntervalInput({
     return `${baseClasses} text-gray-900`
   }
   
+  // ✅ ENHANCED: Better logic for displaying intervals vs hours
+  const getDisplayContent = () => {
+    // Priority 1: Show timeInterval if it exists (this preserves "10-12" format)
+    if (timeInterval && timeInterval.trim()) {
+      return (
+        <div className="text-xs font-medium">
+          {timeInterval}
+        </div>
+      )
+    }
+    
+    // Priority 2: Show hours if they exist but no interval (legacy data)
+    if (hours > 0) {
+      return (
+        <div className="text-xs font-medium text-blue-600">
+          {hours}h
+        </div>
+      )
+    }
+    
+    // Priority 3: Show placeholder if nothing
+    return (
+      <div className="text-xs text-gray-400">
+        --
+      </div>
+    )
+  }
+  
   if (readOnly) {
     return (
       <div className="text-center">
-        {timeInterval && (
-          <div className="text-xs font-medium text-gray-900">
-            {timeInterval}
-          </div>
-        )}
-        {hours > 0 && (
-          <div className="text-xs font-bold text-blue-600">
+        {getDisplayContent()}
+        {/* ✅ ENHANCED: Show both interval and hours for better context in read-only mode */}
+        {timeInterval && hours > 0 && (
+          <div className="text-xs font-bold text-blue-600 mt-1">
             ({hours}h)
           </div>
         )}
@@ -147,19 +172,11 @@ export function TimeIntervalInput({
       onDoubleClick={startEdit}
       title={validationResult.message || 'Double-click to edit'}
     >
-      {timeInterval && (
-        <div className="text-xs font-medium">
-          {timeInterval}
-        </div>
-      )}
-      {hours > 0 && (
+      {getDisplayContent()}
+      {/* ✅ ENHANCED: Show calculated hours below interval for context */}
+      {timeInterval && hours > 0 && (
         <div className="text-xs font-bold text-blue-600">
           ({hours}h)
-        </div>
-      )}
-      {!timeInterval && !hours && (
-        <div className="text-xs text-gray-400">
-          --
         </div>
       )}
     </div>

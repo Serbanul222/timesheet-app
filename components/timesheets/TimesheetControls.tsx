@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/auth/useAuth'
 import { supabase } from '@/lib/supabase/client'
 import { type TimesheetGridData, type DayStatus } from '@/types/timesheet-grid'
 import { generateDateRange } from '@/lib/timesheet-utils'
+import { formatDateLocal } from '@/lib/timesheet-utils'
 
 interface Store {
   id: string
@@ -154,7 +155,7 @@ export function TimesheetControls({
       employeeName: emp.full_name,
       position: emp.position || 'Staff',
       days: dateRange.reduce((acc, date) => {
-        const dateKey = date.toISOString().split('T')[0]
+        const dateKey = formatDateLocal(date)
         const existingDays = existingDataMap.get(emp.id)
         
         acc[dateKey] = existingDays?.[dateKey] || {

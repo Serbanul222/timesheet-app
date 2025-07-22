@@ -1,4 +1,4 @@
-// lib/services/timesheetSaveService.ts - CORRECTED
+// lib/services/timesheetSaveService.ts - FIXED: Now preserves time intervals
 import { supabase } from '@/lib/supabase/client';
 import { TimesheetGridData } from '@/types/timesheet-grid';
 import { calculateTotalHours } from '@/lib/timesheet-utils';
@@ -26,11 +26,10 @@ export class TimesheetSaveService {
   }
 
   private static _transformGridForDatabase(gridData: TimesheetGridData, options: SaveOptions) {
-    // ... (rest of the function is the same)
     const totalHours = gridData.entries.reduce((acc, entry) => acc + calculateTotalHours(entry.days), 0);
     const employeeCount = gridData.entries.length;
     const gridTitle = this._generateGridTitle(gridData);
-    const dailyEntries = this._createDailyEntriesJSON(gridData); // This function is now corrected
+    const dailyEntries = this._createDailyEntriesJSON(gridData); // ✅ FIXED: Now preserves intervals
 
     return {
       store_id: gridData.storeId,
@@ -46,7 +45,7 @@ export class TimesheetSaveService {
     };
   }
 
-
+  // ✅ FIXED: Now preserves timeInterval in the database
   private static _createDailyEntriesJSON(gridData: TimesheetGridData): any {
     const employeeEntries: { [employeeId: string]: any } = {};
 
@@ -66,15 +65,19 @@ export class TimesheetSaveService {
         const hasData = dayData && (
           dayData.hours > 0 ||
           (dayData.status && dayData.status !== 'alege') ||
-          (dayData.notes && dayData.notes.trim() !== '')
+          (dayData.notes && dayData.notes.trim() !== '') ||
+          (dayData.timeInterval && dayData.timeInterval.trim() !== '') // ✅ ADDED: Check for timeInterval
         );
 
         if (hasData) {
-          // Add the day's data to the current employee's 'days' object
+          // ✅ FIXED: Now save ALL time-related fields including timeInterval
           employeeEntries[entry.employeeId].days[date] = {
-            hours: dayData.hours,
-            status: dayData.status,
-            notes: dayData.notes || '',
+            timeInterval: dayData.timeInterval || '', // ✅ PRESERVE: Original time interval string
+            startTime: dayData.startTime || '',       // ✅ PRESERVE: Start time
+            endTime: dayData.endTime || '',           // ✅ PRESERVE: End time
+            hours: dayData.hours,                     // ✅ PRESERVE: Calculated hours
+            status: dayData.status,                   // ✅ PRESERVE: Status
+            notes: dayData.notes || '',               // ✅ PRESERVE: Notes
           };
         }
       }
@@ -82,6 +85,7 @@ export class TimesheetSaveService {
 
     return employeeEntries;
   }
+
   // No changes needed to the functions below
   private static async _findExistingGrid(storeId: string, startDate: string, endDate: string) {
     const { data, error } = await supabase

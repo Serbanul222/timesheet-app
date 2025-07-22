@@ -20,20 +20,31 @@ export function generateDateRange(startDate: Date, endDate: Date): Date[] {
   const dates: Date[] = []
   const currentDate = new Date(startDate)
   
-  // Ensure we're working with clean dates (no time component)
+  // Ensure we're working with local midnight times
   currentDate.setHours(0, 0, 0, 0)
   const end = new Date(endDate)
   end.setHours(0, 0, 0, 0)
   
-  console.log('Generating date range from:', currentDate.toISOString(), 'to:', end.toISOString())
-  
   while (currentDate <= end) {
-    dates.push(new Date(currentDate))
+    // Create date at noon to avoid timezone issues
+    const dateAtNoon = new Date(currentDate)
+    dateAtNoon.setHours(12, 0, 0, 0)
+    dates.push(dateAtNoon)
     currentDate.setDate(currentDate.getDate() + 1)
   }
   
-  console.log('Generated', dates.length, 'dates:', dates.map(d => d.toISOString().split('T')[0]))
   return dates
+}
+
+/**
+ * Format date to YYYY-MM-DD in local timezone
+ * This prevents timezone shift issues when saving to database
+ */
+export function formatDateLocal(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 /**

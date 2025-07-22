@@ -11,6 +11,7 @@ import { generateDateRange, calculateTotalHours } from '@/lib/timesheet-utils'
 import { useTimesheetSave } from '@/hooks/timesheet/useTimesheetSave'
 import { useGridValidation } from '@/hooks/validation/useGridValidation'
 import { TimesheetCreator } from './TimesheetCreator' // Import the creator
+import { formatDateLocal } from '@/lib/timesheet-utils'
 
 const parseTimeInterval = (interval: string): { startTime: string; endTime: string; hours: number } | null => {
   if (!interval || !interval.trim()) return null
@@ -152,7 +153,7 @@ export function TimesheetGrid({
 
   const dailyTotals = useMemo(() => {
     return dateRange.reduce((acc, date) => {
-      const dateKey = date.toISOString().split('T')[0]
+      const dateKey = formatDateLocal(date)
       acc[dateKey] = entries.reduce((sum, entry) => sum + (entry.days[dateKey]?.hours || 0), 0)
       return acc
     }, {} as Record<string, number>)

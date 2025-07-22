@@ -4,6 +4,7 @@
 import { TimesheetCell } from './TimesheetCell'
 import { type TimesheetEntry, type DayStatus } from '@/types/timesheet-grid'
 import { formatHours } from '@/lib/utils'
+import { formatDateLocal } from '@/lib/timesheet-utils'
 
 interface TimesheetGridRowProps {
   entry: TimesheetEntry
@@ -65,7 +66,7 @@ export function TimesheetGridRow({
       {/* Daily Cells */}
       <div className="flex">
         {dateRange.map((date, index) => {
-          const dateKey = date.toISOString().split('T')[0]
+          const dateKey = formatDateLocal(date)
           
           const dayData = entry.days[dateKey] || {
             timeInterval: '',

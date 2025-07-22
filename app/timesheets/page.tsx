@@ -1,10 +1,9 @@
-// app/timesheets/page.tsx - FIXED: Pass timesheet ID for historical context
+// app/timesheets/page.tsx - FIXED: Remove duplicate header, use MainLayout
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
-import { Header } from '@/components/layout/Header'
+import { MainLayout } from '@/components/layout/MainLayout'  // ✅ Use MainLayout instead
 import { TimesheetGrid } from '@/components/timesheets/TimesheetGrid'
 import { TimesheetControls } from '@/components/timesheets/TimesheetControls'
 import { TimesheetListView, TimesheetGridRecord } from '@/components/timesheets/TimesheetListView'
@@ -124,7 +123,7 @@ export default function TimesheetsPage() {
       return;
     }
 
-    // ✅ ENHANCED: Better parsing of timesheet data formats
+    // ✅ ENHANCED: Better parsing of timesheet data formats with interval restoration
     const entries = parseTimesheetEntries(timesheet);
 
     const gridData: TimesheetGridData = {
@@ -166,77 +165,70 @@ export default function TimesheetsPage() {
 
   if (!permissions.canViewTimesheets) {
     return (
-      <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50">
-          <Header />
-          <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-xl font-semibold text-red-700">Access Denied</h2>
-            <p className="text-gray-600 mt-2">You do not have permission to view this page.</p>
-          </main>
+      <MainLayout>
+        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-xl font-semibold text-red-700">Access Denied</h2>
+          <p className="text-gray-600 mt-2">You do not have permission to view this page.</p>
         </div>
-      </ProtectedRoute>
+      </MainLayout>
     );
   }
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {viewMode === 'list' ? 'Timesheets' : 
-                   viewMode === 'edit' ? 'Edit Timesheet' : 'Create Timesheet'}
-                </h1>
-                <p className="text-gray-600">
-                  {viewMode === 'list' ? 'View and manage timesheet records' :
-                   viewMode === 'edit' ? 'Edit existing timesheet data' : 'Create new timesheet records'}
-                </p>
-              </div>
-              {viewMode !== 'list' && (
-                <Button variant="outline" onClick={handleCancel}>Back to List</Button>
-              )}
+    <MainLayout>  {/* ✅ FIXED: Use MainLayout instead of ProtectedRoute + Header */}
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {viewMode === 'list' ? 'Timesheets' : 
+                 viewMode === 'edit' ? 'Edit Timesheet' : 'Create Timesheet'}
+              </h1>
+              <p className="text-gray-600">
+                {viewMode === 'list' ? 'View and manage timesheet records' :
+                 viewMode === 'edit' ? 'Edit existing timesheet data' : 'Create new timesheet records'}
+              </p>
             </div>
-
-            {viewMode === 'list' && (
-              <TimesheetListView
-                storeId={urlStoreId || undefined}
-                storeName={urlStoreName || undefined}
-                employeeId={urlEmployeeId || undefined}
-                employeeName={urlEmployeeName || undefined}
-                onEditTimesheet={handleEditTimesheet}
-                onCreateNew={handleCreateNew}
-              />
-            )}
-
-            {(viewMode === 'create' || viewMode === 'edit') && (
-              <>
-                {/* ✅ ENHANCED: Pass existing timesheet ID for historical context */}
-                <TimesheetControls
-                  timesheetData={timesheetData}
-                  onUpdate={handleTimesheetUpdate}
-                  isSaving={isSaving}
-                  existingTimesheetId={editingTimesheet?.id} // ✅ NEW: Historical context
-                />
-                <TimesheetGrid
-                  data={timesheetData}
-                  onDataChange={handleGridDataChange}
-                  onSave={handleSave}
-                  onCancel={handleCancel}
-                  readOnly={!permissions.canEditTimesheets}
-                />
-              </>
+            {viewMode !== 'list' && (
+              <Button variant="outline" onClick={handleCancel}>Back to List</Button>
             )}
           </div>
-        </main>
+
+          {viewMode === 'list' && (
+            <TimesheetListView
+              storeId={urlStoreId || undefined}
+              storeName={urlStoreName || undefined}
+              employeeId={urlEmployeeId || undefined}
+              employeeName={urlEmployeeName || undefined}
+              onEditTimesheet={handleEditTimesheet}
+              onCreateNew={handleCreateNew}
+            />
+          )}
+
+          {(viewMode === 'create' || viewMode === 'edit') && (
+            <>
+              <TimesheetControls
+                timesheetData={timesheetData}
+                onUpdate={handleTimesheetUpdate}
+                isSaving={isSaving}
+                existingTimesheetId={editingTimesheet?.id}
+              />
+              <TimesheetGrid
+                data={timesheetData}
+                onDataChange={handleGridDataChange}
+                onSave={handleSave}
+                onCancel={handleCancel}
+                readOnly={!permissions.canEditTimesheets}
+              />
+            </>
+          )}
+        </div>
       </div>
-    </ProtectedRoute>
+    </MainLayout>
   );
 }
 
-// ✅ NEW: Enhanced timesheet entry parsing with better format support
+// ✅ FIXED: Enhanced timesheet entry parsing that PRESERVES time intervals
 function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
   const dailyEntries = timesheet.daily_entries;
   if (!dailyEntries || typeof dailyEntries !== 'object') {
@@ -261,10 +253,13 @@ function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
           const dayEntry = dailyEntries[dateKey]?.[employeeId];
           
           days[dateKey] = {
-            hours: dayEntry?.hours || 0,
-            status: dayEntry?.status || 'alege',
-            notes: dayEntry?.notes || '',
-            timeInterval: dayEntry?.timeInterval || '',
+            // ✅ FIXED: Restore ALL time-related fields including timeInterval
+            timeInterval: dayEntry?.timeInterval || '',  // ✅ RESTORE: Original interval string
+            startTime: dayEntry?.startTime || '',        // ✅ RESTORE: Start time  
+            endTime: dayEntry?.endTime || '',            // ✅ RESTORE: End time
+            hours: dayEntry?.hours || 0,                 // ✅ RESTORE: Calculated hours
+            status: dayEntry?.status || 'alege',         // ✅ RESTORE: Status
+            notes: dayEntry?.notes || '',                // ✅ RESTORE: Notes
           };
         });
 
@@ -295,10 +290,13 @@ function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
             const dayEntry = employeeData.days?.[dateKey];
             
             days[dateKey] = {
-              hours: dayEntry?.hours || 0,
-              status: dayEntry?.status || 'alege',
-              notes: dayEntry?.notes || '',
-              timeInterval: dayEntry?.timeInterval || '',
+              // ✅ FIXED: Restore ALL time-related fields including timeInterval
+              timeInterval: dayEntry?.timeInterval || '',  // ✅ RESTORE: Original interval string
+              startTime: dayEntry?.startTime || '',        // ✅ RESTORE: Start time
+              endTime: dayEntry?.endTime || '',            // ✅ RESTORE: End time  
+              hours: dayEntry?.hours || 0,                 // ✅ RESTORE: Calculated hours
+              status: dayEntry?.status || 'alege',         // ✅ RESTORE: Status
+              notes: dayEntry?.notes || '',                // ✅ RESTORE: Notes
             };
           });
 
