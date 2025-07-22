@@ -9,6 +9,7 @@ export interface ExternalEmployeeRaw {
   firstname: string | null
   lastname: string | null
   job_name: string | null
+  customerId: number
 }
 
 /**
@@ -21,6 +22,7 @@ export interface ProcessedEmployeeData {
   lastName: string
   position: string
   source: 'external_db'
+  customerId: number 
 }
 
 /**
@@ -71,7 +73,8 @@ export const ExternalEmployeeSchema = z.object({
   email: z.string().email('Invalid email format'),
   firstname: z.string().nullable(),
   lastname: z.string().nullable(),
-  job_name: z.string().nullable()
+  job_name: z.string().nullable(),
+  customerId: z.number()
 })
 
 export const EmployeeLookupRequestSchema = z.object({
@@ -178,7 +181,37 @@ export const transformExternalEmployee = (
     firstName,
     lastName,
     position: raw.job_name?.trim() || 'Staff',
-    source: 'external_db'
+    source: 'external_db',
+    customerId: raw.customerId
+  }
+}
+
+/**
+ * Transform raw service data (different structure) to ProcessedEmployeeData
+ * This handles the actual data structure returned by your external service
+ */
+export const transformServiceEmployee = (
+  rawData: {
+    customerId: number
+    email: string
+    fullName: string
+    position: string
+    originalJobName: string
+  }
+): ProcessedEmployeeData => {
+  // Split fullName into firstName and lastName
+  const nameParts = rawData.fullName.trim().split(' ')
+  const firstName = nameParts[0] || ''
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
+
+  return {
+    email: rawData.email,
+    fullName: rawData.fullName,
+    firstName,
+    lastName,
+    position: rawData.position,
+    source: 'external_db',
+    customerId: rawData.customerId
   }
 }
 

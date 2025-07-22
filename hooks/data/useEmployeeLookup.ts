@@ -26,12 +26,19 @@ interface UseEmployeeLookupReturn {
   // State
   state: EmployeeLookupState
   isLoading: boolean
-  
+
   // Actions
   lookupEmployee: (email: string) => Promise<ProcessedEmployeeData | null>
   searchEmployees: (pattern: string) => Promise<ProcessedEmployeeData[]>
   clearResults: () => void
-  
+
+  // Debounced actions
+  debouncedLookup: (email: string) => void
+  debouncedSearch: (pattern: string) => void
+
+  // Search results
+  searchResults: ProcessedEmployeeData[]
+
   // Utilities
   isValidEmail: (email: string) => boolean
   canLookup: boolean
@@ -54,8 +61,8 @@ export function useEmployeeLookup(options: UseEmployeeLookupOptions = {}): UseEm
   })
 
   const [searchResults, setSearchResults] = useState<ProcessedEmployeeData[]>([])
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>()
-  const abortControllerRef = useRef<AbortController>()
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Cleanup on unmount
   useEffect(() => {

@@ -8,12 +8,30 @@ import {
   createSearchResponse,
   LOOKUP_ERROR_CODES,
   ExternalEmployeeLookupError,
-  EXTERNAL_DB_CONFIG
+  EXTERNAL_DB_CONFIG,
+  ProcessedEmployeeData,
+  transformServiceEmployee
 } from '@/types/externalEmployee'
 import { z } from 'zod'
 
 // Rate limiting store (in production, use Redis or similar)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+
+// Type for what your service is actually returning (based on the error)
+interface ServiceReturnData {
+  customerId: number
+  email: string
+  fullName: string
+  position: string
+  originalJobName: string
+}
+
+/**
+ * Transform service data to ProcessedEmployeeData format
+ */
+function transformToProcessedEmployeeData(rawData: ServiceReturnData): ProcessedEmployeeData {
+  return transformServiceEmployee(rawData)
+}
 
 /**
  * GET /api/employees/lookup?email=example@lensa.com
@@ -75,6 +93,7 @@ export async function GET(request: NextRequest) {
       email: validatedData.email
     })
 
+    // Handle service errors
     if (result.error) {
       return NextResponse.json(
         createLookupResponse(false, undefined, result.error),
@@ -82,8 +101,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Transform data if found
+    const processedData = result.found && result.data 
+      ? transformToProcessedEmployeeData(result.data as ServiceReturnData)
+      : undefined
+
     return NextResponse.json(
-      createLookupResponse(result.found, result.data),
+      createLookupResponse(result.found, processedData),
       { status: 200 }
     )
 
@@ -148,9 +172,10 @@ export async function POST(request: NextRequest) {
       validatedData.limit
     )
 
+    // Process and transform results
     const processedResults = results
       .filter(result => result.found && result.data)
-      .map(result => result.data!)
+      .map(result => transformToProcessedEmployeeData(result.data as ServiceReturnData))
 
     const duration = Date.now() - startTime
     console.log(`Employee search completed in ${duration}ms`, {
@@ -174,6 +199,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (error instanceof ExternalEmployeeLookupError) {
+      const statusCode = getStatusCodeForError(error.code)
+      return NextResponse.json(
+        createSearchResponse([], '', error.message),
+        { status: statusCode }
+      )
+    }
+
     return NextResponse.json(
       createSearchResponse([], '', 'Internal server error'),
       { status: 500 }
@@ -182,7 +215,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET /api/employees/lookup/test
+ * HEAD /api/employees/lookup
  * Test database connectivity
  */
 export async function HEAD(request: NextRequest) {
@@ -201,6 +234,7 @@ export async function HEAD(request: NextRequest) {
       })
     }
   } catch (error) {
+    console.error('Database connection test failed:', error)
     return new NextResponse(null, { 
       status: 503,
       headers: { 'X-DB-Status': 'error' }

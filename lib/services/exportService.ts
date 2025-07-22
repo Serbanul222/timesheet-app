@@ -15,7 +15,7 @@ interface TimesheetRow {
 
 interface ExportOptions {
   dateRange?: { startDate: string; endDate: string }
-  format: 'excel' | 'csv' // Removed 'pdf'
+  format: 'excel' | 'csv'
   includeNotes?: boolean
   includeEmptyDays?: boolean
   filename?: string
@@ -190,19 +190,12 @@ export class ExportService {
           // Add daily values for each date in the selected range
           timesheet.dateRange.forEach(date => {
             const dateKey = format(date, 'yyyy-MM-dd')
-            let dayValue = this.getDayValue(
+            const dayValue = this.getDayValue(
               employee.id, 
               dateKey, 
               timesheet.dailyEntries,
               options.includeEmptyDays
             )
-            
-            // CRITICAL: Prevent Excel from auto-converting time intervals to dates
-            // If it looks like a time interval (contains dash between numbers), force as text
-            if (dayValue && /^\d{1,2}-\d{1,2}$/.test(dayValue)) {
-              dayValue = `'${dayValue}` // Prefix with single quote to force text format
-            }
-            
             row.push(dayValue)
           })
           
@@ -287,19 +280,12 @@ export class ExportService {
         
         timesheet.dateRange.forEach(date => {
           const dateKey = format(date, 'yyyy-MM-dd')
-          let dayValue = this.getDayValue(
+          const dayValue = this.getDayValue(
             employee.id, 
             dateKey, 
             timesheet.dailyEntries,
             options.includeEmptyDays
           )
-          
-          // CRITICAL: Prevent Excel/Spreadsheet apps from auto-converting time intervals
-          // Wrap time intervals in quotes to preserve as text
-          if (dayValue && /^\d{1,2}-\d{1,2}$/.test(dayValue)) {
-            dayValue = `"${dayValue}"` // Wrap in quotes for CSV
-          }
-          
           row.push(dayValue)
         })
         
@@ -308,14 +294,15 @@ export class ExportService {
     })
 
     const content = rows.join('\n')
-    const buffer = new TextEncoder().encode(content).buffer
+    const uint8Array = new TextEncoder().encode(content)
+    const buffer = uint8Array.buffer instanceof ArrayBuffer ? uint8Array.buffer : new ArrayBuffer(0)
     const filename = options.filename || 
       `timesheets_${format(parseISO(options.dateRange!.startDate), 'yyyy-MM-dd')}_to_${format(parseISO(options.dateRange!.endDate), 'yyyy-MM-dd')}.csv`
 
     return {
       success: true,
       data: {
-        buffer,
+        buffer: buffer as ArrayBuffer,
         filename,
         mimeType: 'text/csv'
       }
