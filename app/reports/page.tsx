@@ -37,8 +37,30 @@ export default function ReportsPage() {
         throw new Error('Date range is required for export')
       }
       
-      // The hook will handle data fetching internally
-      await exportTimesheets([], format, options)
+      // ✅ FIXED: Create properly typed options with defaults for all required fields
+      const validatedOptions = {
+        // Required dateRange
+        dateRange: {
+          startDate: options.dateRange.startDate,
+          endDate: options.dateRange.endDate
+        },
+        // Optional fields with defaults
+        storeIds: options.storeIds,
+        zoneIds: options.zoneIds,
+        employeeIds: options.employeeIds,
+        includeDelegated: options.includeDelegated ?? false,
+        includeNotes: options.includeNotes ?? false,
+        includeEmptyDays: options.includeEmptyDays ?? false,
+        groupByStore: options.groupByStore ?? false,
+        groupByEmployee: options.groupByEmployee ?? false,
+        maxRows: options.maxRows,
+        sheetNames: options.sheetNames,
+        filename: options.filename,
+        compression: options.compression ?? false
+      }
+      
+      // ✅ FIXED: Call with validated options that match the expected type
+      await exportTimesheets(format, validatedOptions)
       
     } catch (error) {
       console.error('Export failed:', error)
@@ -124,6 +146,7 @@ export default function ReportsPage() {
             <div className="space-y-6">
               <ExportPanel
                 userRole={permissions.canViewTimesheets ? 'HR' : 'STORE_MANAGER'}
+                onExport={handleExport}  {/* ✅ Pass the export handler to ExportPanel */}
               />
               
               {/* Export Progress Indicator */}
@@ -138,10 +161,10 @@ export default function ReportsPage() {
                       <div className="w-32 bg-gray-200 rounded-full h-2">
                         <div 
                           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${exportState.progress}%` }}
+                          style={{ width: `${exportState.progress || 0}%` }}
                         />
                       </div>
-                      <span className="text-sm text-gray-600">{exportState.progress}%</span>
+                      <span className="text-sm text-gray-600">{exportState.progress || 0}%</span>
                     </div>
                   </div>
                 </div>
