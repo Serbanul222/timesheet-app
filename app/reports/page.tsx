@@ -10,7 +10,7 @@ import { useTimesheetExport } from '@/hooks/useTimesheetExport'
 import { Button } from '@/components/ui/Button'
 import { Download, BarChart3, FileText } from 'lucide-react'
 import type { ExportFormat, ExportOptions } from '@/types/exports'
-import { MainLayout } from '@/components/layout/MainLayout'  // ✅ Use MainLayout
+import { MainLayout } from '@/components/layout/MainLayout'
 
 export default function ReportsPage() {
   const permissions = usePermissions()
@@ -37,7 +37,7 @@ export default function ReportsPage() {
         throw new Error('Date range is required for export')
       }
       
-      // ✅ FIXED: Create properly typed options with defaults for all required fields
+      // Create properly typed options with defaults for all required fields
       const validatedOptions = {
         // Required dateRange
         dateRange: {
@@ -59,7 +59,7 @@ export default function ReportsPage() {
         compression: options.compression ?? false
       }
       
-      // ✅ FIXED: Call with validated options that match the expected type
+      // Call with validated options that match the expected type
       await exportTimesheets(format, validatedOptions)
       
     } catch (error) {
@@ -70,7 +70,7 @@ export default function ReportsPage() {
   // Check permissions
   if (!permissions.canViewTimesheets) {
     return (
-      <MainLayout>  {/* ✅ FIXED: Use MainLayout instead of ProtectedRoute */}
+      <MainLayout>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="bg-white rounded-lg shadow p-6 text-center">
@@ -89,11 +89,10 @@ export default function ReportsPage() {
   }
 
   return (
-    <MainLayout>  {/* ✅ FIXED: Use MainLayout instead of ProtectedRoute */}
+    <MainLayout>
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0 space-y-6">
           
-          {/* Page Header with Navigation Tabs */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -103,7 +102,6 @@ export default function ReportsPage() {
                 </p>
               </div>
               
-              {/* View Toggle Buttons */}
               <div className="mt-4 lg:mt-0 flex space-x-1 bg-gray-100 rounded-lg p-1">
                 <Button
                   variant={activeView === 'dashboard' ? 'default' : 'ghost'}
@@ -133,7 +131,6 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Dashboard View - ⚠️ POTENTIAL ISSUE: Check if TimesheetDashboard has its own header */}
           {activeView === 'dashboard' && (
             <TimesheetDashboard
               onNavigateToGrid={handleNavigateToGrid}
@@ -141,15 +138,12 @@ export default function ReportsPage() {
             />
           )}
           
-          {/* Export Panel View */}
           {activeView === 'exports' && (
             <div className="space-y-6">
               <ExportPanel
                 userRole={permissions.canViewTimesheets ? 'HR' : 'STORE_MANAGER'}
-                onExport={handleExport}  {/* ✅ Pass the export handler to ExportPanel */}
               />
               
-              {/* Export Progress Indicator */}
               {exportState.isLoading && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex items-center justify-between">
@@ -170,7 +164,6 @@ export default function ReportsPage() {
                 </div>
               )}
               
-              {/* Export Status and History */}
               {exportState.lastExport && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Exports</h3>
@@ -207,7 +200,6 @@ export default function ReportsPage() {
             </div>
           )}
           
-          {/* Analytics Placeholder */}
           {activeView === 'analytics' && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="text-center py-12">
