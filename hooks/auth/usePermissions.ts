@@ -1,4 +1,4 @@
-// hooks/auth/usePermissions.ts - Updated with delegation permissions
+// hooks/auth/usePermissions.ts - FIXED: Proper permission logic
 'use client'
 
 import { useMemo } from 'react'
@@ -20,7 +20,7 @@ interface Permissions {
   canDeleteEmployees: boolean
   canViewEmployees: boolean
   
-  // NEW: Delegation permissions
+  // Delegation permissions
   canCreateDelegation: boolean
   canRevokeDelegation: boolean
   canExtendDelegation: boolean
@@ -30,15 +30,38 @@ interface Permissions {
 }
 
 export function usePermissions(): Permissions {
-  const { profile } = useAuth()
+  const { profile, user, loading } = useAuth()
   
-  // By extracting the role (a primitive string), the useMemo hook below
-  // will only re-run when the role *value* changes, not the profile object reference.
-  const role = profile?.role
+  // Extract the role safely
+  const role = profile?.role as UserRole | undefined
 
   const permissions = useMemo((): Permissions => {
-    // Base permissions for any authenticated user.
-    const basePermissions = {
+    // Wait for auth to finish loading before making permission decisions
+    if (loading) {
+      console.log('usePermissions: Auth still loading, granting basic access temporarily')
+      return {
+        canViewTimesheets: true,
+        canCreateTimesheets: true,
+        canEditTimesheets: true,
+        canViewEmployees: true,
+        canCreateEmployees: true,
+        canEditEmployees: true,
+        canViewAllZones: false,
+        canViewAllStores: false,
+        canManageUsers: false,
+        canDeleteTimesheets: false,
+        canExportTimesheets: false,
+        canDeleteEmployees: false,
+        canCreateDelegation: false,
+        canRevokeDelegation: false,
+        canExtendDelegation: false,
+        canViewDelegations: false,
+        canDelegateAcrossZones: false,
+        canApproveDelegations: false,
+      }
+    }
+    // ✅ FIX: Default permissions for any authenticated user
+    const basePermissions: Permissions = {
       canViewTimesheets: true,
       canCreateTimesheets: true,
       canEditTimesheets: true,
@@ -61,8 +84,15 @@ export function usePermissions(): Permissions {
       canApproveDelegations: false,
     }
 
-    if (!role) {
-      // Return a default (disabled) set of permissions if there's no role.
+    // ✅ FIX: If user exists but no profile yet, give basic permissions
+    if (user && !profile) {
+      console.log('usePermissions: User exists but profile loading, granting basic access')
+      return basePermissions
+    }
+
+    // ✅ FIX: If no user, deny access
+    if (!user) {
+      console.log('usePermissions: No user, denying all access')
       return { 
         ...basePermissions, 
         canViewTimesheets: false, 
@@ -74,6 +104,13 @@ export function usePermissions(): Permissions {
       }
     }
 
+    // ✅ FIX: If no role yet, grant basic permissions (profile might be loading)
+    if (!role) {
+      console.log('usePermissions: No role set, granting basic permissions')
+      return basePermissions
+    }
+
+    // ✅ FIX: Role-specific permissions
     switch (role) {
       case 'HR':
         return {
@@ -127,9 +164,24 @@ export function usePermissions(): Permissions {
         }
 
       default:
+        // ✅ FIX: Unknown role gets basic permissions
+        console.log('usePermissions: Unknown role:', role, 'granting basic permissions')
         return basePermissions
     }
-  }, [role]) // The dependency array now contains a stable, primitive value.
+  }, [role, user, profile, loading])
+
+  // ✅ DEBUG: Log permission decisions in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('usePermissions: Permission calculation', {
+      hasUser: !!user,
+      hasProfile: !!profile,
+      role,
+      loading,
+      canViewTimesheets: permissions.canViewTimesheets,
+      canCreateTimesheets: permissions.canCreateTimesheets,
+      canEditTimesheets: permissions.canEditTimesheets
+    })
+  }
 
   return permissions
 }

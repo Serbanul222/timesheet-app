@@ -26,19 +26,9 @@ export function Header({ className = '' }: HeaderProps) {
       show: permissions.canViewTimesheets
     },
     {
-      name: 'Employees',
-      href: '/employees',
-      show: permissions.canViewEmployees
-    },
-    {
       name: 'Reports', // ✅ NEW: Reports navigation
       href: '/reports',
       show: permissions.canViewTimesheets // Same permission as timesheets
-    },
-    {
-      name: 'Admin',
-      href: '/admin',
-      show: permissions.canManageUsers
     }
   ].filter(item => item.show)
 

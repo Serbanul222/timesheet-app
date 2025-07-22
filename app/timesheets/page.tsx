@@ -187,7 +187,7 @@ function TimesheetsContent() {
             </p>
           </div>
           {viewMode !== 'list' && (
-            <Button variant="outline" onClick={handleCancel}>Back to List</Button>
+            <Button variant="outline" onClick={handleCancel}>Edit Timesheet</Button>
           )}
         </div>
 

@@ -15,7 +15,7 @@ import { MainLayout } from '@/components/layout/MainLayout'
 export default function ReportsPage() {
   const permissions = usePermissions()
   const router = useRouter()
-  const [activeView, setActiveView] = useState<'dashboard' | 'exports' | 'analytics'>('dashboard')
+  const [activeView, setActiveView] = useState<'dashboard' | 'exports'>('dashboard')
 
   const { exportState, exportTimesheets } = useTimesheetExport()
 
@@ -96,9 +96,9 @@ export default function ReportsPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
                 <p className="text-gray-600 mt-1">
-                  View timesheet analytics and export data for reporting
+                  View timesheet and export data for reporting
                 </p>
               </div>
               
@@ -118,14 +118,6 @@ export default function ReportsPage() {
                   leftIcon={<Download className="h-4 w-4" />}
                 >
                   Export Data
-                </Button>
-                <Button
-                  variant={activeView === 'analytics' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setActiveView('analytics')}
-                  leftIcon={<FileText className="h-4 w-4" />}
-                >
-                  Analytics
                 </Button>
               </div>
             </div>
@@ -201,33 +193,6 @@ export default function ReportsPage() {
             </div>
           )}
           
-          {activeView === 'analytics' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                  <FileText className="w-8 h-8 text-blue-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Advanced Analytics</h2>
-                <p className="text-gray-600 mb-6">
-                  Detailed analytics and insights about your timesheet data
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <h3 className="font-medium text-gray-900">Trend Analysis</h3>
-                    <p className="text-sm text-gray-600 mt-1">Coming soon</p>
-                  </div>
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <h3 className="font-medium text-gray-900">Performance Metrics</h3>
-                    <p className="text-sm text-gray-600 mt-1">Coming soon</p>
-                  </div>
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <h3 className="font-medium text-gray-900">Custom Reports</h3>
-                    <p className="text-sm text-gray-600 mt-1">Coming soon</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
         </div>
       </div>
