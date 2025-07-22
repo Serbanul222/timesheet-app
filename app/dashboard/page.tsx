@@ -1,7 +1,6 @@
 // app/dashboard/page.tsx - Updated with consistent layout
 'use client'
 
-import { useState } from 'react'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { useRouter } from 'next/navigation'
 import { MainLayout } from '@/components/layout/MainLayout'

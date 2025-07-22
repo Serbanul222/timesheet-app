@@ -55,7 +55,7 @@ export default function ReportsPage() {
         groupByEmployee: options.groupByEmployee ?? false,
         maxRows: options.maxRows,
         sheetNames: options.sheetNames,
-        filename: options.filename,
+        filename: options.filename ?? 'export.xlsx',
         compression: options.compression ?? false
       }
       
@@ -142,6 +142,7 @@ export default function ReportsPage() {
             <div className="space-y-6">
               <ExportPanel
                 userRole={permissions.canViewTimesheets ? 'HR' : 'STORE_MANAGER'}
+                onExport={handleExport}
               />
               
               {exportState.isLoading && (

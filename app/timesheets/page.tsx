@@ -1,9 +1,9 @@
-// app/timesheets/page.tsx - FIXED: Remove duplicate header, use MainLayout
+// app/timesheets/page.tsx - FIXED: Add Suspense boundary for useSearchParams
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { MainLayout } from '@/components/layout/MainLayout'  // ✅ Use MainLayout instead
+import { MainLayout } from '@/components/layout/MainLayout'
 import { TimesheetGrid } from '@/components/timesheets/TimesheetGrid'
 import { TimesheetControls } from '@/components/timesheets/TimesheetControls'
 import { TimesheetListView, TimesheetGridRecord } from '@/components/timesheets/TimesheetListView'
@@ -32,7 +32,8 @@ interface TimesheetWithDetails {
 
 type ViewMode = 'list' | 'create' | 'edit';
 
-export default function TimesheetsPage() {
+// ✅ NEW: Separate component that uses useSearchParams
+function TimesheetsContent() {
   const permissions = usePermissions();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -123,7 +124,6 @@ export default function TimesheetsPage() {
       return;
     }
 
-    // ✅ ENHANCED: Better parsing of timesheet data formats with interval restoration
     const entries = parseTimesheetEntries(timesheet);
 
     const gridData: TimesheetGridData = {
@@ -165,65 +165,87 @@ export default function TimesheetsPage() {
 
   if (!permissions.canViewTimesheets) {
     return (
-      <MainLayout>
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-xl font-semibold text-red-700">Access Denied</h2>
-          <p className="text-gray-600 mt-2">You do not have permission to view this page.</p>
-        </div>
-      </MainLayout>
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 text-center">
+        <h2 className="text-xl font-semibold text-red-700">Access Denied</h2>
+        <p className="text-gray-600 mt-2">You do not have permission to view this page.</p>
+      </div>
     );
   }
 
   return (
-    <MainLayout>  {/* ✅ FIXED: Use MainLayout instead of ProtectedRoute + Header */}
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {viewMode === 'list' ? 'Timesheets' : 
-                 viewMode === 'edit' ? 'Edit Timesheet' : 'Create Timesheet'}
-              </h1>
-              <p className="text-gray-600">
-                {viewMode === 'list' ? 'View and manage timesheet records' :
-                 viewMode === 'edit' ? 'Edit existing timesheet data' : 'Create new timesheet records'}
-              </p>
-            </div>
-            {viewMode !== 'list' && (
-              <Button variant="outline" onClick={handleCancel}>Back to List</Button>
-            )}
+    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <div className="px-4 py-6 sm:px-0 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {viewMode === 'list' ? 'Timesheets' : 
+               viewMode === 'edit' ? 'Edit Timesheet' : 'Create Timesheet'}
+            </h1>
+            <p className="text-gray-600">
+              {viewMode === 'list' ? 'View and manage timesheet records' :
+               viewMode === 'edit' ? 'Edit existing timesheet data' : 'Create new timesheet records'}
+            </p>
           </div>
-
-          {viewMode === 'list' && (
-            <TimesheetListView
-              storeId={urlStoreId || undefined}
-              storeName={urlStoreName || undefined}
-              employeeId={urlEmployeeId || undefined}
-              employeeName={urlEmployeeName || undefined}
-              onEditTimesheet={handleEditTimesheet}
-              onCreateNew={handleCreateNew}
-            />
-          )}
-
-          {(viewMode === 'create' || viewMode === 'edit') && (
-            <>
-              <TimesheetControls
-                timesheetData={timesheetData}
-                onUpdate={handleTimesheetUpdate}
-                isSaving={isSaving}
-                existingTimesheetId={editingTimesheet?.id}
-              />
-              <TimesheetGrid
-                data={timesheetData}
-                onDataChange={handleGridDataChange}
-                onSave={handleSave}
-                onCancel={handleCancel}
-                readOnly={!permissions.canEditTimesheets}
-              />
-            </>
+          {viewMode !== 'list' && (
+            <Button variant="outline" onClick={handleCancel}>Back to List</Button>
           )}
         </div>
+
+        {viewMode === 'list' && (
+          <TimesheetListView
+            onEditTimesheet={handleEditTimesheet}
+            onCreateNew={handleCreateNew}
+          />
+        )}
+
+        {(viewMode === 'create' || viewMode === 'edit') && (
+          <>
+            <TimesheetControls
+              timesheetData={timesheetData}
+              onUpdate={handleTimesheetUpdate}
+              isSaving={isSaving}
+              existingTimesheetId={editingTimesheet?.id}
+            />
+            <TimesheetGrid
+              data={timesheetData}
+              onDataChange={handleGridDataChange}
+              onSave={handleSave}
+              onCancel={handleCancel}
+              readOnly={!permissions.canEditTimesheets}
+            />
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ✅ NEW: Loading component for Suspense fallback
+function TimesheetsLoading() {
+  return (
+    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <div className="px-4 py-6 sm:px-0">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-32 bg-gray-200 rounded"></div>
+            <div className="h-32 bg-gray-200 rounded"></div>
+            <div className="h-32 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ✅ MAIN: Main page component with Suspense boundary
+export default function TimesheetsPage() {
+  return (
+    <MainLayout>
+      <Suspense fallback={<TimesheetsLoading />}>
+        <TimesheetsContent />
+      </Suspense>
     </MainLayout>
   );
 }
@@ -253,13 +275,12 @@ function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
           const dayEntry = dailyEntries[dateKey]?.[employeeId];
           
           days[dateKey] = {
-            // ✅ FIXED: Restore ALL time-related fields including timeInterval
-            timeInterval: dayEntry?.timeInterval || '',  // ✅ RESTORE: Original interval string
-            startTime: dayEntry?.startTime || '',        // ✅ RESTORE: Start time  
-            endTime: dayEntry?.endTime || '',            // ✅ RESTORE: End time
-            hours: dayEntry?.hours || 0,                 // ✅ RESTORE: Calculated hours
-            status: dayEntry?.status || 'alege',         // ✅ RESTORE: Status
-            notes: dayEntry?.notes || '',                // ✅ RESTORE: Notes
+            timeInterval: dayEntry?.timeInterval || '',
+            startTime: dayEntry?.startTime || '',
+            endTime: dayEntry?.endTime || '',
+            hours: dayEntry?.hours || 0,
+            status: dayEntry?.status || 'alege',
+            notes: dayEntry?.notes || '',
           };
         });
 
@@ -278,9 +299,9 @@ function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
       
       return Object.entries(dailyEntries)
         .filter(([key, value]) => 
-          !key.startsWith('_') && // Skip metadata
+          !key.startsWith('_') && 
           typeof value === 'object' && 
-          value.name // Has employee name
+          value.name
         )
         .map(([employeeId, employeeData]: [string, any]) => {
           const days: { [date: string]: any } = {};
@@ -290,13 +311,12 @@ function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
             const dayEntry = employeeData.days?.[dateKey];
             
             days[dateKey] = {
-              // ✅ FIXED: Restore ALL time-related fields including timeInterval
-              timeInterval: dayEntry?.timeInterval || '',  // ✅ RESTORE: Original interval string
-              startTime: dayEntry?.startTime || '',        // ✅ RESTORE: Start time
-              endTime: dayEntry?.endTime || '',            // ✅ RESTORE: End time  
-              hours: dayEntry?.hours || 0,                 // ✅ RESTORE: Calculated hours
-              status: dayEntry?.status || 'alege',         // ✅ RESTORE: Status
-              notes: dayEntry?.notes || '',                // ✅ RESTORE: Notes
+              timeInterval: dayEntry?.timeInterval || '',
+              startTime: dayEntry?.startTime || '',
+              endTime: dayEntry?.endTime || '',
+              hours: dayEntry?.hours || 0,
+              status: dayEntry?.status || 'alege',
+              notes: dayEntry?.notes || '',
             };
           });
 

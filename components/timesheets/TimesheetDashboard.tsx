@@ -1,11 +1,10 @@
-// components/timesheets/TimesheetDashboard.tsx - FIXED: Remove all Header usage
+// components/timesheets/TimesheetDashboard.tsx - FIXED: Strict TypeScript compliance
 'use client'
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { usePermissions } from '@/hooks/auth/usePermissions'
-// ✅ REMOVED: import { Header } from '@/components/layout/Header'
 import { TimesheetOverview } from './visualization/TimesheetOverview'
 import { TimesheetStats } from './visualization/TimesheetStats'
 import { Button } from '@/components/ui/Button'
@@ -34,25 +33,41 @@ export function TimesheetDashboard({
   const permissions = usePermissions()
   const router = useRouter()
   
-  // Default to current month
+  // Helper function to format date to YYYY-MM-DD with null safety
+  const formatDateString = (date: Date): string => {
+    const isoString = date.toISOString()
+    const datePart = isoString.split('T')[0]
+    return datePart || '' // Fallback to empty string if split fails
+  }
+  
+  // Default to current month with proper type handling
   const defaultFilters: DashboardFilters = useMemo(() => {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
     
-    return {
+    const baseFilters: DashboardFilters = {
       period: 'month',
-      storeId: profile?.role === 'STORE_MANAGER' ? profile.store_id || undefined : undefined,
-      zoneId: profile?.role === 'ASM' ? profile.zone_id || undefined : undefined,
-      startDate: startOfMonth.toISOString().split('T')[0],
-      endDate: endOfMonth.toISOString().split('T')[0]
+      startDate: formatDateString(startOfMonth),
+      endDate: formatDateString(endOfMonth)
     }
+
+    // Conditionally add optional properties only if they have values
+    if (profile?.role === 'STORE_MANAGER' && profile.store_id) {
+      baseFilters.storeId = profile.store_id
+    }
+    
+    if (profile?.role === 'ASM' && profile.zone_id) {
+      baseFilters.zoneId = profile.zone_id
+    }
+    
+    return baseFilters
   }, [profile])
 
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Handle period change
+  // Handle period change with proper date string handling
   const handlePeriodChange = (period: DashboardFilters['period']) => {
     const now = new Date()
     let startDate: Date
@@ -76,11 +91,15 @@ export function TimesheetDashboard({
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0)
     }
 
+    // Extract date strings explicitly for type safety
+    const startDateString = formatDateString(startDate)
+    const endDateString = formatDateString(endDate)
+
     setFilters(prev => ({
       ...prev,
       period,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
+      startDate: startDateString,
+      endDate: endDateString
     }))
   }
 
@@ -89,42 +108,50 @@ export function TimesheetDashboard({
     setFilters(prev => ({
       ...prev,
       [field]: value,
-      period: 'month' // Reset to month when manual dates are used
+      period: 'month' as const // Reset to month when manual dates are used
     }))
   }
 
   // Handle refresh
   const handleRefresh = async () => {
     setIsRefreshing(true)
-    // Trigger data refresh - will be passed to child components
-    await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate refresh
-    setIsRefreshing(false)
+    try {
+      // Simulate refresh - replace with actual data refresh logic
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    } catch (error) {
+      console.error('Failed to refresh dashboard:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
-  // Quick navigation actions
+  // Quick navigation actions (remove unused function warnings)
   const handleCreateNew = () => {
     console.log('Navigate to create new timesheet')
-    onNavigateToGrid?.()
+    if (onNavigateToGrid) {
+      onNavigateToGrid()
+    }
   }
 
   const handleViewAll = () => {
     console.log('Navigate to timesheet list')
-    onNavigateToList?.()
+    if (onNavigateToList) {
+      onNavigateToList()
+    }
   }
 
   // Handle clicks from detailed statistics
   const handleStoreClick = (storeId: string, storeName: string) => {
     console.log('Navigate to timesheet grid for store:', storeName, storeId)
-    // Navigate to timesheets page with store filter
     router.push(`/timesheets?storeId=${storeId}&storeName=${encodeURIComponent(storeName)}`)
   }
 
   const handleEmployeeClick = (employeeId: string, employeeName: string) => {
     console.log('Navigate to timesheet grid for employee:', employeeName, employeeId)
-    // Navigate to timesheets page with employee filter
     router.push(`/timesheets?employeeId=${employeeId}&employeeName=${encodeURIComponent(employeeName)}`)
   }
 
+  // Loading state
   if (!user || !profile) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -136,12 +163,18 @@ export function TimesheetDashboard({
     )
   }
 
+  // Permission check
   if (!permissions.canViewTimesheets) {
     return (
       <div className="bg-white rounded-lg shadow p-6 text-center">
         <div className="text-red-600 mb-4">
           <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" 
+            />
           </svg>
         </div>
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
@@ -151,7 +184,7 @@ export function TimesheetDashboard({
   }
 
   return (
-    <div className={`space-y-6 ${className}`}>  {/* ✅ FIXED: Remove min-h-screen and bg-gray-50, remove Header */}
+    <div className={`space-y-6 ${className}`}>
       
       {/* Dashboard Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -170,7 +203,12 @@ export function TimesheetDashboard({
               loading={isRefreshing}
               leftIcon={
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                  />
                 </svg>
               }
             >
@@ -182,7 +220,12 @@ export function TimesheetDashboard({
                 onClick={handleCreateNew}
                 leftIcon={
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M12 4v16m8-8H4" 
+                    />
                   </svg>
                 }
               >
@@ -234,16 +277,17 @@ export function TimesheetDashboard({
       {/* Overview Cards */}
       <TimesheetOverview 
         filters={filters}
-        onNavigateToGrid={handleCreateNew}
-        onNavigateToList={handleViewAll}
+        userRole={profile.role}
+        userStoreId={profile.store_id || undefined}
+        userZoneId={profile.zone_id || undefined}
       />
 
       {/* Detailed Statistics */}
       <TimesheetStats 
         filters={filters}
         userRole={profile.role}
-        userStoreId={profile.store_id}
-        userZoneId={profile.zone_id}
+        userStoreId={profile.store_id || undefined}
+        userZoneId={profile.zone_id || undefined}
         onStoreClick={handleStoreClick}
         onEmployeeClick={handleEmployeeClick}
       />

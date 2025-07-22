@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
  * HEAD /api/employees/lookup
  * Test database connectivity
  */
-export async function HEAD(request: NextRequest) {
+export async function HEAD(_request: NextRequest) {
   try {
     const result = await EmployeeLookupService.testConnection()
     
@@ -246,11 +246,18 @@ export async function HEAD(request: NextRequest) {
 
 function getClientId(request: NextRequest): string {
   // In production, you might want to use a more sophisticated approach
-  const forwarded = request.headers.get('x-forwarded-for')
-  const ip = forwarded ? forwarded.split(',')[0] : 
-            request.headers.get('x-real-ip') || 
-            'unknown'
-  return ip.trim()
+  const forwarded: string | null = request.headers.get('x-forwarded-for')
+  const realIp: string | null = request.headers.get('x-real-ip')
+  
+  if (forwarded && typeof forwarded === 'string') {
+    return (forwarded.split(',')[0] ?? '').trim()
+  }
+  
+  if (realIp && typeof realIp === 'string') {
+    return realIp.trim()
+  }
+  
+  return 'unknown'
 }
 
 function checkRateLimit(clientId: string, maxRequests: number = 10): boolean {
