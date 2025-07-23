@@ -1,4 +1,4 @@
-// hooks/auth/useAuth.ts - Fixed to prevent infinite loops and 429 errors
+// hooks/auth/useAuth.ts - OPTIMIZED to prevent excessive re-renders
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -31,13 +31,20 @@ export function useAuth(): AuthState & AuthActions {
     error: null
   })
 
-  // ✅ FIX: Use refs to prevent infinite loops
+  // ✅ OPTIMIZATION: Use refs to prevent infinite loops and excessive fetches
   const isInitialized = useRef(false)
   const isSigningIn = useRef(false)
   const profileCache = useRef<{ [userId: string]: Profile }>({})
+  const lastFetchedUserId = useRef<string | null>(null)
 
-  // ✅ FIX: Memoized profile fetcher with caching
+  // ✅ OPTIMIZATION: Memoized profile fetcher with better caching logic
   const fetchUserProfile = useCallback(async (userId: string): Promise<Profile | null> => {
+    // Prevent duplicate fetches for the same user
+    if (lastFetchedUserId.current === userId && profileCache.current[userId]) {
+      console.log('useAuth: Using cached profile (duplicate fetch prevented):', userId)
+      return profileCache.current[userId]
+    }
+
     // Check cache first
     if (profileCache.current[userId]) {
       console.log('useAuth: Using cached profile for:', userId)
@@ -46,6 +53,7 @@ export function useAuth(): AuthState & AuthActions {
 
     try {
       console.log('useAuth: Fetching profile for user:', userId)
+      lastFetchedUserId.current = userId
       
       const { data, error } = await supabase
         .from('profiles')
@@ -77,7 +85,7 @@ export function useAuth(): AuthState & AuthActions {
     }
   }, [])
 
-  // ✅ FIX: Memoized profile creation
+  // ✅ OPTIMIZATION: Memoized profile creation (unchanged but added to dependencies)
   const createBasicProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
       console.log('useAuth: Creating basic profile...')
@@ -117,7 +125,7 @@ export function useAuth(): AuthState & AuthActions {
     }
   }, [])
 
-  // ✅ FIX: Initialize auth state only once
+  // ✅ OPTIMIZATION: Initialize auth state only once with better state management
   useEffect(() => {
     if (isInitialized.current) return
     
@@ -171,12 +179,12 @@ export function useAuth(): AuthState & AuthActions {
 
     getInitialSession()
 
-    // ✅ FIX: Set up auth listener with proper cleanup
+    // ✅ OPTIMIZATION: Set up auth listener with better state management
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('useAuth: Auth state changed:', event, !!session)
         
-        // Prevent processing during sign-in to avoid loops
+        // ✅ OPTIMIZATION: Prevent processing during sign-in to avoid loops
         if (isSigningIn.current && event === 'SIGNED_IN') {
           console.log('useAuth: Skipping auth state change during sign in')
           return
@@ -185,16 +193,26 @@ export function useAuth(): AuthState & AuthActions {
         if (event === 'SIGNED_IN' && session?.user) {
           console.log('useAuth: User signed in, fetching profile...')
           const profile = await fetchUserProfile(session.user.id)
-          setState({
-            user: session.user,
-            profile,
-            session,
-            loading: false,
-            error: null
+          
+          // ✅ OPTIMIZATION: Only update state if it actually changed
+          setState(prevState => {
+            if (prevState.user?.id === session.user.id && prevState.profile && !prevState.loading) {
+              console.log('useAuth: State unchanged, skipping update')
+              return prevState
+            }
+            
+            return {
+              user: session.user,
+              profile,
+              session,
+              loading: false,
+              error: null
+            }
           })
         } else if (event === 'SIGNED_OUT') {
           console.log('useAuth: User signed out')
           profileCache.current = {} // Clear cache
+          lastFetchedUserId.current = null
           setState({
             user: null,
             profile: null,
@@ -212,7 +230,7 @@ export function useAuth(): AuthState & AuthActions {
     }
   }, [fetchUserProfile])
 
-  // ✅ FIX: Improved sign in with better error handling
+  // ✅ OPTIMIZATION: Improved sign in with better error handling
   const signIn = useCallback(async (email: string, password: string) => {
     if (isSigningIn.current) {
       console.log('useAuth: Sign in already in progress')
@@ -259,7 +277,7 @@ export function useAuth(): AuthState & AuthActions {
     }
   }, [fetchUserProfile])
 
-  // ✅ FIX: Improved sign out
+  // ✅ OPTIMIZATION: Improved sign out
   const signOut = useCallback(async () => {
     console.log('useAuth: Signing out...')
     setState(prev => ({ ...prev, loading: true }))
@@ -274,6 +292,7 @@ export function useAuth(): AuthState & AuthActions {
       
       // Clear cache
       profileCache.current = {}
+      lastFetchedUserId.current = null
       
       // State will be cleared by the auth state change listener
       console.log('useAuth: Sign out successful')

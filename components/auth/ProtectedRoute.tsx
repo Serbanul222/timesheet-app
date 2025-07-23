@@ -1,8 +1,7 @@
-// components/auth/ProtectedRoute.tsx - Fixed with better redirect handling
+// components/auth/ProtectedRoute.tsx - SIMPLIFIED (no redirect logic)
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/auth/useAuth'
 
 interface ProtectedRouteProps {
@@ -16,11 +15,8 @@ export function ProtectedRoute({
   fallback,
   requireAuth = true
 }: ProtectedRouteProps) {
-  const router = useRouter()
-  const pathname = usePathname()
   const { user, loading, error } = useAuth()
   const [debugInfo, setDebugInfo] = useState<string[]>([])
-  const [hasRedirected, setHasRedirected] = useState(false)
 
   // Debug logging
   useEffect(() => {
@@ -29,60 +25,13 @@ export function ProtectedRoute({
       `User: ${user ? 'exists' : 'null'}`,
       `Error: ${error || 'none'}`,
       `RequireAuth: ${requireAuth}`,
-      `Pathname: ${pathname}`,
-      `HasRedirected: ${hasRedirected}`,
       `Time: ${new Date().toLocaleTimeString()}`
     ]
     setDebugInfo(info)
     console.log('ProtectedRoute Debug:', info)
-  }, [user, loading, error, requireAuth, pathname, hasRedirected])
+  }, [user, loading, error, requireAuth])
 
-  // Handle redirects when auth state is determined
-  useEffect(() => {
-    // Don't redirect while still loading or if already redirected
-    if (loading || hasRedirected) return
-
-    console.log('ProtectedRoute: Checking redirect conditions...', {
-      requireAuth,
-      hasUser: !!user,
-      pathname,
-      error
-    })
-
-    // If requiring auth but no user, redirect to login
-    if (requireAuth && !user && !error) {
-      console.log('ProtectedRoute: Redirecting to login - no user')
-      setHasRedirected(true)
-      const loginUrl = `/login?redirectTo=${encodeURIComponent(pathname)}`
-      router.replace(loginUrl)
-      return
-    }
-
-    // If not requiring auth but user exists, redirect to dashboard
-    if (!requireAuth && user) {
-      console.log('ProtectedRoute: Redirecting to timesheets - user exists')
-      setHasRedirected(true)
-      router.replace('/timesheets')
-      return
-    }
-  }, [user, loading, error, requireAuth, pathname, hasRedirected, router])
-
-  // Timeout to prevent infinite loading
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (loading && !hasRedirected) {
-        console.warn('ProtectedRoute: Taking too long, forcing redirect')
-        if (requireAuth && !user) {
-          setHasRedirected(true)
-          router.replace(`/login?redirectTo=${encodeURIComponent(pathname)}`)
-        }
-      }
-    }, 10000) // 10 second timeout
-
-    return () => clearTimeout(timeout)
-  }, [user, loading, requireAuth, pathname, hasRedirected, router])
-
-  // Show loading state with debug info
+  // Show loading state
   if (loading) {
     return (
       fallback || (
@@ -116,7 +65,7 @@ export function ProtectedRoute({
             <p className="text-sm text-red-600 mb-4">{error}</p>
             <div className="space-y-2">
               <button
-                onClick={() => router.replace('/login')}
+                onClick={() => window.location.href = '/login'}
                 className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
               >
                 Go to Login
@@ -134,37 +83,15 @@ export function ProtectedRoute({
     )
   }
 
-  // If we're pending a redirect, show loading
-  if (hasRedirected) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Redirecting...</p>
-        </div>
-      </div>
-    )
-  }
+  // ✅ SIMPLIFIED: Just check auth requirements, let middleware handle redirects
+  const shouldShowContent = requireAuth ? !!user : true
 
-  // If requiring auth but no user, show loading (redirect will happen via useEffect)
-  if (requireAuth && !user) {
+  if (!shouldShowContent) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Checking authentication...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // If not requiring auth but user exists, show loading (redirect will happen via useEffect)
-  if (!requireAuth && user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Redirecting to dashboard...</p>
         </div>
       </div>
     )

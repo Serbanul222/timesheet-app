@@ -1,8 +1,8 @@
-// components/auth/LoginForm.tsx - Fixed with proper redirect
+// components/auth/LoginForm.tsx - SIMPLIFIED (no redirect logic)
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,13 +28,9 @@ interface LoginFormProps {
 
 export function LoginForm({ className = '' }: LoginFormProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const { signIn, loading, error, clearError } = useAuth()
+  const { signIn, loading, error, clearError, user } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // ✅ FIX: Get redirect URL from query params, default to /timesheets
-  const redirectTo = searchParams.get('redirectTo') || '/timesheets'
 
   const {
     register,
@@ -67,15 +63,17 @@ export function LoginForm({ className = '' }: LoginFormProps) {
         return
       }
 
-      console.log('LoginForm: Sign in successful, redirecting to:', redirectTo)
+      console.log('LoginForm: Sign in successful')
       toast.success('Signed in successfully', {
         description: 'Welcome back!'
       })
       
-      // ✅ FIX: Add small delay to ensure auth state is updated
+      // ✅ FIX: Use router to trigger navigation (which triggers middleware)
+      console.log('LoginForm: Sign in complete, navigating to trigger middleware')
+      
       setTimeout(() => {
-        router.push(redirectTo)
-        router.refresh()
+        router.push('/timesheets')
+        router.refresh() // Ensure middleware runs
       }, 100)
       
     } catch (err) {
@@ -188,7 +186,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
             w-full flex justify-center py-2 px-4 border border-transparent 
             rounded-md shadow-sm text-sm font-medium text-white 
             transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-            ${isSubmitting || loading 
+            ${isSubmitting || loading
               ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-blue-600 hover:bg-blue-700'
             }
@@ -211,9 +209,10 @@ export function LoginForm({ className = '' }: LoginFormProps) {
       {/* Debug Info */}
       {process.env.NODE_ENV === 'development' && (
         <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
-          <p>Redirect URL: {redirectTo}</p>
           <p>Loading: {loading ? 'true' : 'false'}</p>
           <p>Submitting: {isSubmitting ? 'true' : 'false'}</p>
+          <p>User exists: {user ? 'true' : 'false'}</p>
+          <p>User ID: {user?.id || 'none'}</p>
         </div>
       )}
     </div>
