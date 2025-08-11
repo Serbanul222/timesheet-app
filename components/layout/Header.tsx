@@ -1,4 +1,5 @@
-// components/layout/Header.tsx - Updated with Reports link
+// Replace your components/layout/Header.tsx with this updated version:
+
 'use client'
 
 import { useState } from 'react'
@@ -26,9 +27,20 @@ export function Header({ className = '' }: HeaderProps) {
       show: permissions.canViewTimesheets
     },
     {
-      name: 'Reports', // ✅ NEW: Reports navigation
+      name: 'Reports',
       href: '/reports',
-      show: permissions.canViewTimesheets // Same permission as timesheets
+      show: permissions.canViewTimesheets
+    },
+    // ✅ NEW: Admin panel for HR users
+    {
+      name: 'Admin',
+      href: '/admin/users',
+      show: profile?.role === 'HR', // Only show for HR users
+      icon: (
+        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+        </svg>
+      )
     }
   ].filter(item => item.show)
 
@@ -63,8 +75,13 @@ export function Header({ className = '' }: HeaderProps) {
               <Link
                 key={item.name}
                 href={item.href}
-                className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  item.name === 'Admin' 
+                    ? 'text-purple-700 hover:text-purple-900 hover:bg-purple-50 border border-purple-200' 
+                    : 'text-gray-700 hover:text-blue-600'
+                }`}
               >
+                {item.icon}
                 {item.name}
               </Link>
             ))}
@@ -109,6 +126,20 @@ export function Header({ className = '' }: HeaderProps) {
                     >
                       Profile Settings
                     </Link>
+
+                    {/* ✅ NEW: Admin link in dropdown for HR users */}
+                    {profile.role === 'HR' && (
+                      <Link
+                        href="/admin/users"
+                        className="flex items-center px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        </svg>
+                        User Administration
+                      </Link>
+                    )}
                     
                     <div className="border-t border-gray-100 pt-1">
                       <div className="px-4 py-2">
@@ -157,8 +188,13 @@ export function Header({ className = '' }: HeaderProps) {
               <Link
                 key={item.name}
                 href={item.href}
-                className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md"
+                className={`flex items-center px-3 py-2 text-base font-medium rounded-md ${
+                  item.name === 'Admin'
+                    ? 'text-purple-700 hover:text-purple-900 hover:bg-purple-50'
+                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                }`}
               >
+                {item.icon}
                 {item.name}
               </Link>
             ))}

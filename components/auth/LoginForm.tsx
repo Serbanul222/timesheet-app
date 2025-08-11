@@ -1,4 +1,5 @@
-// components/auth/LoginForm.tsx - SIMPLIFIED (no redirect logic)
+// Replace your components/auth/LoginForm.tsx with this version:
+
 'use client'
 
 import { useState } from 'react'
@@ -8,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { toast } from 'sonner'
+import { ForgotPasswordForm } from './ForgotPasswordForm'
 
 const loginSchema = z.object({
   email: z
@@ -31,11 +33,14 @@ export function LoginForm({ className = '' }: LoginFormProps) {
   const { signIn, loading, error, clearError, user } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    setError,
+    clearErrors,
     reset
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -45,26 +50,65 @@ export function LoginForm({ className = '' }: LoginFormProps) {
     }
   })
 
+  // ✅ NEW: Validate user exists in database via API call instead of direct supabase
+  const validateUserInDatabase = async (email: string) => {
+    try {
+      const response = await fetch(`/api/auth/validate-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('User validation error:', error)
+      return { exists: false, error: 'Validation failed' }
+    }
+  }
+
   const onSubmit = async (data: LoginFormData) => {
     if (isSubmitting) return
     
     setIsSubmitting(true)
     clearError()
+    clearErrors()
     
     try {
       console.log('LoginForm: Attempting sign in...')
+      
+      // ✅ FIXED: Check if user exists in our profiles table via API
+      const validation = await validateUserInDatabase(data.email)
+      
+      if (!validation.exists || validation.error) {
+        console.log('LoginForm: User not authorized:', data.email)
+        setError('email', {
+          message: 'This email is not authorized to access the system. Please contact your administrator.'
+        })
+        return
+      }
+      
+      // Continue with existing signIn logic
       const result = await signIn(data.email, data.password)
       
       if (result.error) {
         console.error('LoginForm: Sign in failed:', result.error)
-        toast.error('Sign in failed', {
-          description: result.error
-        })
+        
+        // Better error handling
+        if (result.error.includes('Invalid login credentials')) {
+          setError('password', { message: 'Invalid email or password' })
+        } else if (result.error.includes('Email not confirmed')) {
+          setError('email', { message: 'Please check your email and click the confirmation link' })
+        } else if (result.error.includes('Too many requests')) {
+          setError('root', { message: 'Too many login attempts. Please try again later.' })
+        } else {
+          setError('root', { message: result.error })
+        }
         return
       }
 
       console.log('LoginForm: Sign in successful')
-      toast.success('Signed in successfully', {
+      toast.success(`Welcome back, ${validation.profile?.full_name || 'User'}!`, {
         description: 'Welcome back!'
       })
       
@@ -78,9 +122,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
       
     } catch (err) {
       console.error('LoginForm: Unexpected error:', err)
-      toast.error('Sign in failed', {
-        description: 'An unexpected error occurred'
-      })
+      setError('root', { message: 'An unexpected error occurred. Please try again.' })
     } finally {
       setIsSubmitting(false)
     }
@@ -88,6 +130,12 @@ export function LoginForm({ className = '' }: LoginFormProps) {
 
   const handleInputFocus = () => {
     if (error) clearError()
+    clearErrors()
+  }
+
+  // Show forgot password form when requested
+  if (showForgotPassword) {
+    return <ForgotPasswordForm onBack={() => setShowForgotPassword(false)} />
   }
 
   return (
@@ -127,11 +175,20 @@ export function LoginForm({ className = '' }: LoginFormProps) {
           )}
         </div>
 
-        {/* Password Input */}
+        {/* Password Input with Forgot Password Link */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowForgotPassword(true)}
+              className="text-sm text-blue-600 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+            >
+              Forgot password?
+            </button>
+          </div>
           <div className="relative">
             <input
               {...register('password')}
@@ -172,9 +229,9 @@ export function LoginForm({ className = '' }: LoginFormProps) {
         </div>
 
         {/* Global Error Display */}
-        {error && (
+        {(error || errors.root) && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600">{errors.root?.message || error}</p>
           </div>
         )}
 
@@ -205,6 +262,13 @@ export function LoginForm({ className = '' }: LoginFormProps) {
           )}
         </button>
       </form>
+
+      {/* Help Text */}
+      <div className="text-center">
+        <p className="text-xs text-gray-500">
+          Need access? Contact your system administrator.
+        </p>
+      </div>
 
       {/* Debug Info */}
       {process.env.NODE_ENV === 'development' && (
