@@ -1,13 +1,12 @@
-// Replace your app/auth/reset-password/page.tsx with this SSR-safe version:
-
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { SetPasswordForm } from '@/components/auth/SetPasswordForm'
 
-export default function ResetPasswordPage() {
+// Extract the component that uses useSearchParams into a separate component
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(true)
@@ -251,5 +250,26 @@ export default function ResetPasswordPage() {
         />
       </div>
     </div>
+  )
+}
+
+// Loading fallback component
+function ResetPasswordLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+// Main page component with Suspense boundary
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordLoading />}>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
