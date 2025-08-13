@@ -1,4 +1,3 @@
-// app/auth/reset-password/page.tsx - ENHANCED: Better URL handling
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
@@ -20,26 +19,13 @@ function ResetPasswordContent() {
       try {
         console.log('🔐 Reset page: Starting password reset flow')
         
-        // ✅ ENHANCED: Better debug info and URL cleaning
+        // ✅ FIXED: Set debug info safely on client side only
         if (typeof window !== 'undefined') {
-          const currentUrl = window.location.href
-          const currentHash = window.location.hash
-          
           setDebugInfo({
-            url: currentUrl,
-            hash: currentHash
+            url: window.location.href,
+            hash: window.location.hash
           })
-          
-          console.log('🔍 Current URL:', currentUrl)
-          console.log('🔍 URL Hash:', currentHash)
-          
-          // ✅ NEW: Check if we're on the wrong domain and redirect
-          if (currentUrl.includes('localhost') && process.env.NODE_ENV === 'production') {
-            const correctUrl = currentUrl.replace('http://localhost:3000', process.env.NEXT_PUBLIC_SITE_URL || '')
-            console.log('🔀 Redirecting to correct domain:', correctUrl)
-            window.location.href = correctUrl
-            return
-          }
+          console.log('🔍 Current URL:', window.location.href)
         }
         
         // Method 1: Check for URL parameters (code-based flow)
@@ -75,7 +61,7 @@ function ResetPasswordContent() {
 
           console.log('✅ Reset page: Code exchange successful')
           
-          // Clean URL safely on client side only
+          // ✅ FIXED: Clean URL safely on client side only
           if (typeof window !== 'undefined') {
             window.history.replaceState({}, document.title, '/auth/reset-password')
           }
@@ -202,7 +188,7 @@ function ResetPasswordContent() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Verifying reset link...</p>
           
-          {/* Debug info with SSR safety */}
+          {/* ✅ FIXED: Debug info with SSR safety */}
           {process.env.NODE_ENV === 'development' && debugInfo && (
             <div className="mt-4 p-4 bg-gray-100 rounded-lg text-left max-w-md mx-auto">
               <p className="text-sm font-medium text-gray-800 mb-2">Debug Info:</p>
@@ -210,8 +196,6 @@ function ResetPasswordContent() {
                 <p>URL: {debugInfo.url}</p>
                 <p>Code param: {searchParams.get('code') ? 'Yes' : 'No'}</p>
                 <p>Hash: {debugInfo.hash}</p>
-                <p>Environment: {process.env.NODE_ENV}</p>
-                <p>Site URL: {process.env.NEXT_PUBLIC_SITE_URL}</p>
               </div>
             </div>
           )}
