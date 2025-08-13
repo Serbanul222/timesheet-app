@@ -14,12 +14,12 @@ import { ForgotPasswordForm } from './ForgotPasswordForm'
 const loginSchema = z.object({
   email: z
     .string()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address'),
+    .min(1, 'Adresa de email este obligatorie')
+    .email('Te rugăm să introduci o adresă de email validă'),
   password: z
     .string()
-    .min(1, 'Password is required')
-    .min(6, 'Password must be at least 6 characters')
+    .min(1, 'Parola este obligatorie')
+    .min(6, 'Parola trebuie să aibă cel puțin 6 caractere')
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
@@ -83,7 +83,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
       if (!validation.exists || validation.error) {
         console.log('LoginForm: User not authorized:', data.email)
         setError('email', {
-          message: 'This email is not authorized to access the system. Please contact your administrator.'
+          message: 'Această adresă de email nu este autorizată să acceseze sistemul. Te rugăm să contactezi administratorul.'
         })
         return
       }
@@ -96,11 +96,11 @@ export function LoginForm({ className = '' }: LoginFormProps) {
         
         // Better error handling
         if (result.error.includes('Invalid login credentials')) {
-          setError('password', { message: 'Invalid email or password' })
+          setError('password', { message: 'Email sau parolă invalidă' })
         } else if (result.error.includes('Email not confirmed')) {
-          setError('email', { message: 'Please check your email and click the confirmation link' })
+          setError('email', { message: 'Te rugăm să-ți verifici emailul și să dai click pe linkul de confirmare' })
         } else if (result.error.includes('Too many requests')) {
-          setError('root', { message: 'Too many login attempts. Please try again later.' })
+          setError('root', { message: 'Prea multe încercări de autentificare. Te rugăm să încerci din nou mai târziu.' })
         } else {
           setError('root', { message: result.error })
         }
@@ -108,8 +108,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
       }
 
       console.log('LoginForm: Sign in successful')
-      toast.success(`Welcome back, ${validation.profile?.full_name || 'User'}!`, {
-        description: 'Welcome back!'
+      toast.success(`Bun venit înapoi, ${validation.profile?.full_name || 'User'}!`, {
       })
       
       // ✅ FIX: Use router to trigger navigation (which triggers middleware)
@@ -122,7 +121,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
       
     } catch (err) {
       console.error('LoginForm: Unexpected error:', err)
-      setError('root', { message: 'An unexpected error occurred. Please try again.' })
+      setError('root', { message: 'A apărut o eroare neașteptată. Te rugăm să încerci din nou.' })
     } finally {
       setIsSubmitting(false)
     }
@@ -142,10 +141,10 @@ export function LoginForm({ className = '' }: LoginFormProps) {
     <div className={`w-full max-w-md space-y-6 ${className}`}>
       <div className="text-center">
         <h1 className="text-2xl font-bold text-gray-900">
-          Sign in to Timesheet Manager
+          Autentificare în Ponteo
         </h1>
         <p className="mt-2 text-sm text-gray-600">
-          Enter your credentials to access your account
+          Introduceți datele de autentificare pentru a-ți accesa contul
         </p>
       </div>
 
@@ -153,7 +152,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
         {/* Email Input */}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address
+            Adresa de email
           </label>
           <input
             {...register('email')}
@@ -167,7 +166,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
               focus:border-blue-500 transition-colors text-gray-900
               ${errors.email ? 'border-red-500 ring-1 ring-red-500' : ''}
             `}
-            placeholder="john.doe@example.com"
+            placeholder="popescu.ionut@example.com"
             disabled={isSubmitting || loading}
           />
           {errors.email && (
@@ -179,14 +178,14 @@ export function LoginForm({ className = '' }: LoginFormProps) {
         <div>
           <div className="flex items-center justify-between mb-1">
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
+              Parola
             </label>
             <button
               type="button"
               onClick={() => setShowForgotPassword(true)}
               className="text-sm text-blue-600 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
             >
-              Forgot password?
+              Ai uitat parola?
             </button>
           </div>
           <div className="relative">
@@ -202,7 +201,7 @@ export function LoginForm({ className = '' }: LoginFormProps) {
                 focus:border-blue-500 transition-colors text-gray-900
                 ${errors.password ? 'border-red-500 ring-1 ring-red-500' : ''}
               `}
-              placeholder="Enter your password"
+              placeholder="Introduceți parola"
               disabled={isSubmitting || loading}
             />
             <button
@@ -255,10 +254,10 @@ export function LoginForm({ className = '' }: LoginFormProps) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Signing in...
+              Autentificare...
             </div>
           ) : (
-            'Sign In'
+            'Autentifică-te'
           )}
         </button>
       </form>
@@ -266,19 +265,9 @@ export function LoginForm({ className = '' }: LoginFormProps) {
       {/* Help Text */}
       <div className="text-center">
         <p className="text-xs text-gray-500">
-          Need access? Contact your system administrator.
+          Ai nevoie de acces? Contactează administratorul sistemului.
         </p>
       </div>
-
-      {/* Debug Info */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
-          <p>Loading: {loading ? 'true' : 'false'}</p>
-          <p>Submitting: {isSubmitting ? 'true' : 'false'}</p>
-          <p>User exists: {user ? 'true' : 'false'}</p>
-          <p>User ID: {user?.id || 'none'}</p>
-        </div>
-      )}
     </div>
   )
 }

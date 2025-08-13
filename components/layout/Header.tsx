@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { usePermissions } from '@/hooks/auth/usePermissions'
 import { LogoutButton } from '@/components/auth/LogoutButton'
+import { Logo } from '@/components/ui/Logo' // Import the new Logo component
 
 interface HeaderProps {
   className?: string
@@ -31,7 +32,7 @@ export function Header({ className = '' }: HeaderProps) {
       href: '/reports',
       show: permissions.canViewTimesheets
     },
-    // ✅ NEW: Admin panel for HR users
+    // ✅ Admin panel for HR users
     {
       name: 'Admin',
       href: '/admin/users',
@@ -55,17 +56,8 @@ export function Header({ className = '' }: HeaderProps) {
         <div className="flex justify-between items-center h-16">
           {/* Logo and Brand */}
           <div className="flex items-center">
-            <Link href="/timesheets" className="flex items-center">
-              <div className="flex-shrink-0">
-                <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h1 className="text-xl font-semibold text-gray-900">
-                  Timesheet Manager
-                </h1>
-              </div>
+            <Link href="/timesheets" className="flex items-center hover:opacity-80 transition-opacity">
+              <Logo size="md" showText={true} />
             </Link>
           </div>
 
@@ -127,7 +119,7 @@ export function Header({ className = '' }: HeaderProps) {
                       Profile Settings
                     </Link>
 
-                    {/* ✅ NEW: Admin link in dropdown for HR users */}
+                    {/* ✅ Admin link in dropdown for HR users */}
                     {profile.role === 'HR' && (
                       <Link
                         href="/admin/users"
