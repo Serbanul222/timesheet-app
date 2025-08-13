@@ -196,13 +196,12 @@ export function AdminUserList() {
   }
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
 
-  // ✅ FIX: Add optional chaining `?.` and nullish coalescing `??` to prevent crashes if auth_status were ever undefined.
   const stats = {
     total: users.length,
     active: users.filter(u => u.auth_status?.has_completed_setup ?? false).length,
@@ -221,9 +220,7 @@ export function AdminUserList() {
 
   return (
     <div className="space-y-6">
-      {/* ... (The rest of the JSX is correct and does not need changes) ... */}
-      {/* Header, Forms, Modals, Stats Cards, Filters, and User List JSX remains the same */}
-            {/* Header with Action Buttons */}
+      {/* Header with Action Buttons */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium text-gray-900">User Management</h2>
         <div className="flex space-x-3">
@@ -243,7 +240,7 @@ export function AdminUserList() {
               </button>
               <button
                 onClick={() => {
-                  refetchProfiles() // Only refresh profiles
+                  refetchProfiles()
                 }}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -423,7 +420,7 @@ export function AdminUserList() {
                               <span>Store: {user.store.name}</span>
                             )}
                             {user.auth_status?.last_sign_in_at ? (
-                              <span>Last login: {new Date(user.auth_status.last_sign_in_at!).toLocaleDateString()}</span>
+                              <span>Last login: {new Date(user.auth_status.last_sign_in_at).toLocaleDateString()}</span>
                             ) : (
                               <span>Never signed in</span>
                             )}

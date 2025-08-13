@@ -1,14 +1,11 @@
-// middleware.ts - FIXED: Proper async/await handling for Next.js 15
+// Replace your existing middleware.ts with this corrected version:
 
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
-  // ✅ FIXED: Create response and supabase client properly
   const res = NextResponse.next()
-  
-  // ✅ FIXED: Use NextRequest and NextResponse for middleware client
   const supabase = createMiddlewareClient({ req, res })
   
   const { data: { session } } = await supabase.auth.getSession()
@@ -30,34 +27,19 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
   
-  // If we have a session, validate the user exists in our database
+  // If we have a session, allow the request to proceed.
   if (session?.user) {
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id, email, role')
-        .eq('id', session.user.id)
-        .single()
+    // We remove the profile check from the middleware. The client-side useAuth
+    // hook will now be responsible for creating the profile if it doesn't exist.
       
-      // If user doesn't exist in our profiles table, sign them out
-      if (error || !profile) {
-        console.log('Middleware: User not in database, signing out:', session.user.email)
-        
-        await supabase.auth.signOut()
-        
-        const loginUrl = new URL('/login', req.url)
-        loginUrl.searchParams.set('error', 'unauthorized')
-        return NextResponse.redirect(loginUrl)
-      }
-      
-      // If accessing auth pages while authenticated, redirect to app
-      if (isAuthPath && req.nextUrl.pathname === '/login') {
-        return NextResponse.redirect(new URL('/timesheets', req.url))
-      }
-      
-    } catch (dbError) {
-      console.error('Middleware: Database check failed:', dbError)
-      // On database errors, allow the request to continue
+    // Allow access to the password setup pages
+    if (isAuthPath) {
+      return res; 
+    }
+
+    // If accessing the login page while authenticated, redirect to the app's main page
+    if (req.nextUrl.pathname === '/login') {
+      return NextResponse.redirect(new URL('/timesheets', req.url))
     }
   }
   

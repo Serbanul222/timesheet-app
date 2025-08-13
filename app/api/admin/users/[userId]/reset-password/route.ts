@@ -1,12 +1,13 @@
-// app/api/admin/users/[userId]/reset-password/route.ts - FIXED: Awaited cookies
+// Replace your existing file with this corrected version
 
-import { createClient } from '@supabase/supabase-js'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { Database } from '@/types/database'
 
-// Service role client for bypassing RLS
-const supabaseAdmin = createClient(
+// Use service role for admin operations
+const supabaseAdmin = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
@@ -19,55 +20,80 @@ const supabaseAdmin = createClient(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: { userId: string } }
 ) {
   try {
-    // ✅ FIXED: Await params for Next.js 15
-    const { userId } = await params
+    console.log('🔄 API: Reset password requested for user ID:', params.userId)
+
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     
-    // ✅ FIXED: Await cookies for Next.js 15
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (sessionError || !session?.user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
     }
 
-    // Verify admin user using service role
-    const { data: adminProfile } = await supabaseAdmin
+    const { data: requestingUser, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('id', session.user.id)
       .single()
 
-    if (adminProfile?.role !== 'HR') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (profileError || requestingUser?.role !== 'HR') {
+      console.log('❌ API: Non-HR user attempting reset:', session.user.email)
+      return NextResponse.json(
+        { error: 'HR role required' },
+        { status: 403 }
+      )
     }
 
-    // Get target user profile using service role
-    const { data: profile } = await supabaseAdmin
+    const { data: targetProfile, error: targetError } = await supabaseAdmin
       .from('profiles')
-      .select('email')
-      .eq('id', userId)
+      .select('email, full_name')
+      .eq('id', params.userId)
       .single()
 
-    if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    if (targetError || !targetProfile) {
+      console.error('❌ API: Target user profile not found:', targetError)
+      return NextResponse.json(
+        { error: 'User profile not found' },
+        { status: 404 }
+      )
     }
 
-    // ✅ FIXED: Use service role for password reset (avoids cookie issues)
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(profile.email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password`,
+    console.log('✅ API: Target user found:', targetProfile.email)
+
+    // ✅ FIX: Use the correct function resetPasswordForEmail on the auth client
+    const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(
+      targetProfile.email,
+      {
+        redirectTo: `${request.nextUrl.origin}/auth/reset-password`,
+      }
+    )
+
+    if (resetError) {
+      console.error('❌ API: Failed to send reset email:', resetError)
+      return NextResponse.json(
+        { error: 'Failed to send reset email: ' + resetError.message },
+        { status: 500 }
+      )
+    }
+
+    console.log('✅ API: Password reset email sent to:', targetProfile.email)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Password reset email sent successfully',
+      email: targetProfile.email
     })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
-    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Reset password error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('💥 API: Reset password error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error: ' + (error as Error).message },
+      { status: 500 }
+    )
   }
 }

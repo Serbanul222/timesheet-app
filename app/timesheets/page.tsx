@@ -61,22 +61,38 @@ function TimesheetsContent() {
 
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (urlStoreId && urlStoreName) {
-      toast.info(`Viewing timesheets for: ${urlStoreName}`, {
-        description: 'Click on any timesheet to edit, or create a new one.',
-        duration: 5000,
-      });
-    } else if (urlEmployeeId && urlEmployeeName) {
-      toast.info(`Viewing timesheets for: ${urlEmployeeName}`, {
-        description: 'Click on any timesheet to edit, or create a new one.',
-        duration: 5000,
-      });
-    }
-    if (urlStoreId || urlEmployeeId) {
-      router.replace('/timesheets', { scroll: false });
-    }
-  }, [urlStoreId, urlStoreName, urlEmployeeId, urlEmployeeName, router]);
+// Add this logic to your TimesheetsContent component in app/timesheets/page.tsx
+
+useEffect(() => {
+  // Check the URL hash for a 'type=recovery' parameter.
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const type = params.get('type');
+  
+  if (type === 'recovery') {
+    console.log("Detected recovery link, redirecting to password setup page.");
+    // Clear the URL hash to avoid issues on subsequent loads
+    window.history.pushState("", document.title, window.location.pathname + window.location.search);
+    // Programmatically redirect to the correct page
+    router.push('/auth/set-password');
+    toast.info('Please set your new password.');
+  }
+
+  // Original effect logic continues below...
+  if (urlStoreId && urlStoreName) {
+    toast.info(`Viewing timesheets for: ${urlStoreName}`, {
+      description: 'Click on any timesheet to edit, or create a new one.',
+      duration: 5000,
+    });
+  } else if (urlEmployeeId && urlEmployeeName) {
+    toast.info(`Viewing timesheets for: ${urlEmployeeName}`, {
+      description: 'Click on any timesheet to edit, or create a new one.',
+      duration: 5000,
+    });
+  }
+  if (urlStoreId || urlEmployeeId) {
+    router.replace('/timesheets', { scroll: false });
+  }
+}, [urlStoreId, urlStoreName, urlEmployeeId, urlEmployeeName, router]);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
