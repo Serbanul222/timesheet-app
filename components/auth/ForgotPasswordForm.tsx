@@ -1,4 +1,4 @@
-// Create this file in: components/auth/ForgotPasswordForm.tsx
+// Replace your ForgotPasswordForm.tsx with this fixed version:
 
 'use client'
 
@@ -25,45 +25,68 @@ export function ForgotPasswordForm({ onBack }: { onBack?: () => void }) {
 
   const watchedEmail = watch('email')
 
-  const onSubmit = async (data: FormData) => {
-    if (isSubmitting) return
-    setIsSubmitting(true)
-    
+  // ✅ FIXED: Use API endpoint instead of direct Supabase query
+  const validateUserInDatabase = async (email: string) => {
     try {
-      // Check if user exists in profiles
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, email, full_name')
-        .eq('email', data.email)
-        .single()
-
-      if (profileError || !profile) {
-        toast.error('Email not found', {
-          description: 'This email is not registered in our system.'
-        })
-        return
-      }
-
-      // Send reset email
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      const response = await fetch(`/api/auth/validate-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
       })
-
-      if (error) {
-        toast.error('Failed to send reset email', { description: error.message })
-        return
-      }
-
-      setEmailSent(true)
-      toast.success('Reset email sent!', {
-        description: 'Check your inbox for instructions'
-      })
+      
+      const data = await response.json()
+      return data
     } catch (error) {
-      toast.error('An unexpected error occurred')
-    } finally {
-      setIsSubmitting(false)
+      console.error('User validation error:', error)
+      return { exists: false, error: 'Validation failed' }
     }
   }
+
+ // Update just the onSubmit function in your ForgotPasswordForm.tsx:
+
+const onSubmit = async (data: FormData) => {
+  if (isSubmitting) return
+  setIsSubmitting(true)
+  
+  try {
+    console.log('🔍 Forgot password: Validating email:', data.email)
+    
+    // Check if user exists via API (consistent with login form)
+    const validation = await validateUserInDatabase(data.email)
+    
+    if (!validation.exists || validation.error) {
+      console.log('❌ Forgot password: Email validation failed:', validation.error)
+      toast.error('Email not found', {
+        description: 'This email is not registered in our system.'
+      })
+      return
+    }
+
+    console.log('✅ Forgot password: Email validated, sending reset email')
+
+    // Send reset email - Supabase will handle the redirect URL format
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    })
+
+    if (error) {
+      console.error('❌ Forgot password: Reset email error:', error)
+      toast.error('Failed to send reset email', { description: error.message })
+      return
+    }
+
+    console.log('✅ Forgot password: Reset email sent successfully')
+    setEmailSent(true)
+    toast.success('Reset email sent!', {
+      description: 'Check your inbox for instructions'
+    })
+  } catch (error) {
+    console.error('💥 Forgot password: Unexpected error:', error)
+    toast.error('An unexpected error occurred')
+  } finally {
+    setIsSubmitting(false)
+  }
+}
 
   if (emailSent) {
     return (

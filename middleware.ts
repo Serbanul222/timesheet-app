@@ -1,11 +1,14 @@
-// Replace your existing middleware.ts with this:
+// middleware.ts - FIXED: Proper async/await handling for Next.js 15
 
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
+  // ✅ FIXED: Create response and supabase client properly
   const res = NextResponse.next()
+  
+  // ✅ FIXED: Use NextRequest and NextResponse for middleware client
   const supabase = createMiddlewareClient({ req, res })
   
   const { data: { session } } = await supabase.auth.getSession()

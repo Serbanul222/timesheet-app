@@ -1,4 +1,4 @@
-// Replace your app/api/admin/users/[userId]/reset-password/route.ts with this:
+// app/api/admin/users/[userId]/reset-password/route.ts - FIXED: Awaited cookies
 
 import { createClient } from '@supabase/supabase-js'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
