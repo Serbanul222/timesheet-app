@@ -194,16 +194,16 @@ useEffect(() => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {viewMode === 'list' ? 'Timesheets' : 
-               viewMode === 'edit' ? 'Edit Timesheet' : 'Create Timesheet'}
+              {viewMode === 'list' ? 'Pontaj' : 
+               viewMode === 'edit' ? 'Editare pontaj' : 'Crează pontaj'}
             </h1>
             <p className="text-gray-600">
-              {viewMode === 'list' ? 'View and manage timesheet records' :
-               viewMode === 'edit' ? 'Edit existing timesheet data' : 'Create new timesheet records'}
+              {viewMode === 'list' ? 'Vizualizează și gestionează înregistrările de pontaj' :
+               viewMode === 'edit' ? 'Editează datele existente de pontaj' : 'Creează noi înregistrări de pontaj'}
             </p>
           </div>
           {viewMode !== 'list' && (
-            <Button variant="outline" onClick={handleCancel}>Edit Timesheet</Button>
+            <Button variant="outline" onClick={handleCancel}>Anulează</Button>
           )}
         </div>
 

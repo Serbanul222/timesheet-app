@@ -14,12 +14,12 @@ import { toast } from 'sonner'
 import { validateLensaEmail } from '@/types/externalEmployee'
 
 const employeeSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
-  position: z.string().min(1, 'Position is required'),
+  email: z.string().email('Te rog să adaugi o adresă de email validă'),
+  full_name: z.string().min(2, 'Numele trebuie să aibă cel puțin 2 caractere'),
+  position: z.string().min(1, 'Poziția este necesară'),
   employee_code: z.string().optional().transform(val => val === '' ? null : val),
-  store_id: z.string().min(1, 'Store is required'),
-  zone_id: z.string().min(1, 'Zone is required')
+  store_id: z.string().min(1, 'Magazinul este necesar'),
+  zone_id: z.string().min(1, 'Zona este necesară')
 })
 
 type EmployeeFormData = z.infer<typeof employeeSchema>
@@ -218,7 +218,7 @@ export function EmployeeQuickAddWithLookup({
   return (
     <div className="bg-white rounded-lg border border-gray-300 p-4 mb-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900">Add Employee</h3>
+        <h3 className="text-lg font-medium text-gray-900">Adaugă angajat</h3>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -232,7 +232,7 @@ export function EmployeeQuickAddWithLookup({
           <label className="block text-sm font-medium text-gray-900">Email Address *</label>
           <div className="flex space-x-2">
             <Input
-              placeholder="employee@lensa.com"
+              placeholder="angajat@lensa.com"
               {...register('email')}
               error={errors.email?.message}
               containerClassName="flex-1"
@@ -267,7 +267,7 @@ export function EmployeeQuickAddWithLookup({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <span className="text-sm text-green-800">
-                  Found: <strong>{foundEmployee.fullName}</strong> - {foundEmployee.position}
+                  Găsit: <strong>{foundEmployee.fullName}</strong> - {foundEmployee.position}
                 </span>
               </div>
               <button
@@ -275,7 +275,7 @@ export function EmployeeQuickAddWithLookup({
                 onClick={handleManualEntry}
                 className="text-xs text-green-600 hover:text-green-800 mt-1"
               >
-                Switch to manual entry
+                Schimbă la introducerea manuală
               </button>
             </div>
           )}
@@ -287,7 +287,7 @@ export function EmployeeQuickAddWithLookup({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="text-sm text-blue-800">
-                  Employee not found in Lensa database. You can still create manually.
+                Angajatul nu a fost găsit in baza de date Lensa. Poți crea manual.
                 </span>
               </div>
             </div>
@@ -296,16 +296,16 @@ export function EmployeeQuickAddWithLookup({
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Full Name *"
-            placeholder="Employee name"
+            label="Nume întreg *"
+            placeholder="Numele angajatului"
             {...register('full_name')}
             error={errors.full_name?.message}
             className={foundEmployee ? 'bg-green-50 border-green-300' : ''}
           />
           
           <Input
-            label="Employee Code"
-            placeholder="Optional ID"
+            label="Cod angajat"
+            placeholder="ID opțional"
             {...register('employee_code')}
           />
         </div>
@@ -328,7 +328,7 @@ export function EmployeeQuickAddWithLookup({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-1">Store *</label>
+            <label className="block text-sm font-medium text-gray-900 mb-1">Magazin *</label>
             <select
               {...register('store_id')}
               className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${
@@ -369,7 +369,7 @@ export function EmployeeQuickAddWithLookup({
             loading={isSubmitting}
             className={foundEmployee ? 'bg-green-600 hover:bg-green-700' : ''}
           >
-            {foundEmployee ? 'Add from Lensa DB' : 'Add Employee'}
+            {foundEmployee ? 'Add from Lensa DB' : 'Adaugă angajat'}
           </Button>
         </div>
       </form>

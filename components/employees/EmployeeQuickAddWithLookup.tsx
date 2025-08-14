@@ -14,12 +14,12 @@ import { toast } from 'sonner'
 import { validateLensaEmail } from '@/types/externalEmployee'
 
 const employeeSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
-  position: z.string().min(1, 'Position is required'),
+  email: z.string().email('Te rog să adaugi o adresă de email validă'),
+  full_name: z.string().min(2, 'Numele trebuie să aibă cel puțin 2 caractere'),
+  position: z.string().min(1, 'Poziția este necesară'),
   employee_code: z.string().optional().transform(val => val === '' ? null : val),
-  store_id: z.string().min(1, 'Store is required'),
-  zone_id: z.string().min(1, 'Zone is required')
+  store_id: z.string().min(1, 'Magazinul este necesar'),
+  zone_id: z.string().min(1, 'Zona este necesară')
 }).superRefine((data, ctx) => {
   // ✅ NEW: Skip validation for greyed out fields when employee is found
   // This will be handled in the component logic
@@ -300,7 +300,7 @@ export function EmployeeQuickAddWithLookup({
   return (
     <div className="bg-white rounded-lg border border-gray-300 p-4 mb-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900">Add Employee</h3>
+        <h3 className="text-lg font-medium text-gray-900">Adaugă angajat</h3>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -311,10 +311,10 @@ export function EmployeeQuickAddWithLookup({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* ✅ ENHANCED: Email Input with Lookup */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">Email Address *</label>
+          <label className="block text-sm font-medium text-gray-900">Adresă email *</label>
           <div className="flex space-x-2">
             <Input
-              placeholder="employee@lensa.com"
+              placeholder="angajat@lensa.ro"
               {...register('email')}
               error={errors.email?.message}
               containerClassName="flex-1"
@@ -353,7 +353,7 @@ export function EmployeeQuickAddWithLookup({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span className="text-sm text-green-800">
-                    Found: <strong>{foundEmployee.fullName}</strong> - {foundEmployee.position}
+                    Găsit: <strong>{foundEmployee.fullName}</strong> - {foundEmployee.position}
                   </span>
                 </div>
                 <button
@@ -361,13 +361,13 @@ export function EmployeeQuickAddWithLookup({
                   onClick={handleManualEntry}
                   className="text-xs text-green-600 hover:text-green-800 underline"
                 >
-                  Edit manually
+                  Editează manual
                 </button>
               </div>
               <p className="text-xs text-green-600 mt-1">
-                🔒 Employee details are auto-filled and locked. Only store can be changed.
+                🔒 Detaliile angajatului sunt completate automat și blocate. Numai magazinul poate fi schimbat.
                 <br />
-                📧 You can search for a different employee by changing the email above.
+                📧 Poți căuta un alt angajat schimbând adresa de email de mai sus.
               </p>
             </div>
           )}
@@ -379,7 +379,7 @@ export function EmployeeQuickAddWithLookup({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="text-sm text-blue-800">
-                  Employee not found in Lensa database. You can still create manually.
+                  Angajatul nu a fost găsit în baza de date Lensa. Poți crea manual.
                 </span>
               </div>
             </div>
@@ -392,8 +392,8 @@ export function EmployeeQuickAddWithLookup({
           {/* ✅ ENHANCED: Full Name - greyed out when found */}
           <div>
             <Input
-              label="Full Name *"
-              placeholder="Employee name"
+              label="Nume întreg *"
+              placeholder="Numele angajatului"
               {...register('full_name')}
               error={errors.full_name?.message}
               className={getFieldStyling('full_name')}
@@ -401,7 +401,7 @@ export function EmployeeQuickAddWithLookup({
             />
             {isFieldGreyedOut('full_name') && (
               <p className="text-xs text-gray-500 mt-1">
-                ℹ️ Auto-filled from Lensa database
+                ℹ️ Auto-completat din baza de date Lensa
               </p>
             )}
           </div>
@@ -409,15 +409,15 @@ export function EmployeeQuickAddWithLookup({
           {/* ✅ ENHANCED: Employee Code - greyed out when found */}
           <div>
             <Input
-              label="Employee Code"
-              placeholder="Optional ID"
+              label="Codul de angajat"
+              placeholder="ID opțional"
               {...register('employee_code')}
               className={getFieldStyling('employee_code')}
               disabled={isFieldGreyedOut('employee_code')}
             />
             {isFieldGreyedOut('employee_code') && (
               <p className="text-xs text-gray-500 mt-1">
-                ℹ️ Auto-filled from Lensa customer ID
+                ℹ️ Auto-completat din baza de date Lensa
               </p>
             )}
           </div>
@@ -426,7 +426,7 @@ export function EmployeeQuickAddWithLookup({
         <div className="grid grid-cols-3 gap-4">
           {/* ✅ ENHANCED: Position - greyed out when found */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-1">Position *</label>
+            <label className="block text-sm font-medium text-gray-900 mb-1">Poziția *</label>
             <select
               {...register('position')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -434,7 +434,7 @@ export function EmployeeQuickAddWithLookup({
               } ${errors.position ? 'border-red-500' : ''}`}
               disabled={isFieldGreyedOut('position')}
             >
-              <option value="">Select...</option>
+              <option value="">Selectează...</option>
               {positions.map(pos => (
                 <option key={pos} value={pos}>{pos}</option>
               ))}
@@ -448,7 +448,7 @@ export function EmployeeQuickAddWithLookup({
             {errors.position && <p className="text-sm text-red-600 mt-1">{errors.position.message}</p>}
             {isFieldGreyedOut('position') && (
               <p className="text-xs text-gray-500 mt-1">
-                ℹ️ Auto-filled from Lensa DB: "{foundEmployee.position}"
+                ℹ️ Auto-completat din baza de date Lensa: "{foundEmployee.position}"
               </p>
             )}
           </div>
@@ -456,7 +456,7 @@ export function EmployeeQuickAddWithLookup({
           {/* ✅ ENHANCED: Store - highlighted when employee is found (this is the editable field) */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
-              Store *
+              Magazin *
               {foundEmployee && (
                 <span className="text-blue-600 text-xs ml-1">(📝 Editable)</span>
               )}
@@ -495,21 +495,21 @@ export function EmployeeQuickAddWithLookup({
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              ℹ️ Auto-selected based on store choice
+              ℹ️ Auto-selectat pe baza alegerii magazinului
             </p>
           </div>
         </div>
 
         <div className="flex justify-end space-x-3 pt-4 border-t">
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            Anulează
           </Button>
           <Button 
             type="submit" 
             loading={isSubmitting}
             className={foundEmployee ? 'bg-green-600 hover:bg-green-700' : ''}
           >
-            {foundEmployee ? 'Add from Lensa DB' : 'Add Employee'}
+            {foundEmployee ? 'Adaugă din baza de date Lensa' : 'Adaugă angajat'}
           </Button>
         </div>
       </form>

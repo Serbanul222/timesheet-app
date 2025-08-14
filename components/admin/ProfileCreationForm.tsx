@@ -11,10 +11,10 @@ import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
 const profileSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Te rog să introduci o adresă de email validă'),
+  full_name: z.string().min(2, 'Numele trebuie să aibă cel puțin 2 caractere'),
   role: z.enum(['HR', 'ASM', 'STORE_MANAGER'], {
-    required_error: 'Please select a role'
+    required_error: 'Te rog să selectezi un rol'
   }),
   zone_id: z.string().optional(),
   store_id: z.string().optional()
@@ -23,7 +23,7 @@ const profileSchema = z.object({
   if (data.role === 'ASM' && !data.zone_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Zone is required for ASM role',
+      message: 'Zona este obligatorie pentru ASM',
       path: ['zone_id']
     })
   }
@@ -31,7 +31,7 @@ const profileSchema = z.object({
   if (data.role === 'STORE_MANAGER' && !data.store_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Store is required for Store Manager role',
+      message: 'Magazinul este obligatoriu pentru rolul de Store Manager',
       path: ['store_id']
     })
   }
@@ -216,8 +216,8 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
           />
           
           <Input
-            label="Full Name *"
-            placeholder="John Doe"
+            label="Numele întreg*"
+            placeholder="Popescu Ion"
             {...register('full_name')}
             error={errors.full_name?.message}
           />
@@ -226,7 +226,7 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
-              Role *
+              Rol *
             </label>
             <select
               {...register('role')}
@@ -234,10 +234,10 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
                 errors.role ? 'border-red-500' : ''
               }`}
             >
-              <option value="">Select role...</option>
-              <option value="HR">Human Resources</option>
-              <option value="ASM">Area Sales Manager</option>
-              <option value="STORE_MANAGER">Store Manager</option>
+              <option value="">Selectează rol...</option>
+              <option value="HR">Resurse Umane</option>
+              <option value="ASM">ASM</option>
+              <option value="STORE_MANAGER">Manager Magazin</option>
             </select>
             {errors.role && <p className="text-sm text-red-600 mt-1">{errors.role.message}</p>}
           </div>
@@ -267,7 +267,7 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
           {watchRole === 'STORE_MANAGER' && (
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                Store *
+                Magazin *
               </label>
               <select
                 {...register('store_id')}
@@ -276,7 +276,7 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
                 }`}
                 disabled={!watchZoneId}
               >
-                <option value="">Select store...</option>
+                <option value="">Selectează magazin...</option>
                 {filteredStores.map((store) => (
                   <option key={store.id} value={store.id}>
                     {store.name}
@@ -297,13 +297,13 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
             <h4 className="text-sm font-medium text-blue-800 mb-2">Role Information</h4>
             <div className="text-sm text-blue-700">
               {watchRole === 'HR' && (
-                <p>HR users have full system access including user management and all zones/stores.</p>
+                <p>Utilizatorii HR au acces complet la sistem, inclusiv gestionarea utilizatorilor și toate zonele/magazinele.</p>
               )}
               {watchRole === 'ASM' && (
-                <p>Area Sales Managers can manage all stores within their assigned zone.</p>
+                <p>Managerii de Vânzări Zonale pot gestiona toate magazinele din zona lor desemnată.</p>
               )}
               {watchRole === 'STORE_MANAGER' && (
-                <p>Store Managers can only manage their assigned store and its employees.</p>
+                <p>Managerii de Magazin pot gestiona doar magazinul lor desemnat și angajații acestuia.</p>
               )}
             </div>
           </div>
@@ -311,10 +311,10 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
 
         <div className="flex justify-end space-x-3 pt-4 border-t">
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            Anulează
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            Create Profile
+            Creează Profil
           </Button>
         </div>
       </form>

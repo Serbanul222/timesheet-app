@@ -76,21 +76,21 @@ export function TimesheetOverview({ filters, userRole, userStoreId, userZoneId }
     },
   });
 
-  if (isLoading) return <div>Loading overview...</div>;
+  if (isLoading) return <div>Încărcare overview...</div>;
   if (error) return (
     <div className="text-center p-8 bg-red-50 rounded-lg">
-        <h3 className="text-lg font-semibold text-red-800">Failed to Load Overview</h3>
-        <p className="text-red-600 mt-1">Could not fetch timesheet overview data</p>
+        <h3 className="text-lg font-semibold text-red-800">Overview-ul nu a putut fi incărcat</h3>
+        <p className="text-red-600 mt-1">Nu s-au putut încărca datele pentru overview-ul pontajelor</p>
         {/* You can add a retry button here if needed */}
     </div>
   );
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <OverviewCard title="Total Hours" value={data?.totalHours.toFixed(1) || '0'} icon={Clock} />
-      <OverviewCard title="Total Employees" value={data?.totalEmployees.toString() || '0'} icon={Users} />
-      <OverviewCard title="Timesheet Grids" value={data?.totalGrids.toString() || '0'} icon={BarChart} />
-      <OverviewCard title="Avg Hours/Employee" value={data?.avgHoursPerEmployee.toFixed(2) || '0'} icon={TrendingUp} />
+      <OverviewCard title="Total ore" value={data?.totalHours.toFixed(1) || '0'} icon={Clock} />
+      <OverviewCard title="Total Angajați" value={data?.totalEmployees.toString() || '0'} icon={Users} />
+      <OverviewCard title="Grile Pontaj" value={data?.totalGrids.toString() || '0'} icon={BarChart} />
+      <OverviewCard title="Medie Ore/Angajat" value={data?.avgHoursPerEmployee.toFixed(2) || '0'} icon={TrendingUp} />
     </div>
   );
 }

@@ -37,6 +37,13 @@ export function TimesheetStats({
 }: TimesheetStatsProps) {
   const [activeTab, setActiveTab] = useState<'stores' | 'employees' | 'status'>('stores')
 
+  // Tab labels mapping - like a HashMap in Java
+  const tabLabels: Record<'stores' | 'employees' | 'status', string> = {
+    stores: 'Magazine',
+    employees: 'Angajați',
+    status: 'Status'
+  }
+
   // Fetch data using custom hook
   const { 
     data: statsData, 
@@ -60,10 +67,10 @@ export function TimesheetStats({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to Load Statistics</h3>
-          <p className="text-gray-600 mb-4">Could not fetch detailed timesheet statistics</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Statisticile nu s-au putut încărca cu succes</h3>
+          <p className="text-gray-600 mb-4">Nu s-au putut obține statisticile detaliate ale pontajelor</p>
           <Button variant="outline" onClick={() => refetch()}>
-            Try Again
+            Încearcă din nou
           </Button>
         </div>
       </div>
@@ -74,7 +81,7 @@ export function TimesheetStats({
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>
       {/* Header with tabs */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-gray-900">Detailed Statistics</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Statistici detaliate</h2>
         
         <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
           {(['stores', 'employees', 'status'] as const).map((tab) => (
@@ -87,7 +94,7 @@ export function TimesheetStats({
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tabLabels[tab]}
             </button>
           ))}
         </div>

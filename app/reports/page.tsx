@@ -79,8 +79,8 @@ export default function ReportsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
-              <p className="text-gray-600">You don't have permission to view reports.</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Acces Restricționat</h2>
+              <p className="text-gray-600">Nu ai permisiunea de a vizualiza rapoartele.</p>
             </div>
           </div>
         </div>
@@ -96,9 +96,9 @@ export default function ReportsPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Raportare</h1>
                 <p className="text-gray-600 mt-1">
-                  View timesheet and export data for reporting
+                  Vizualizează și exportă datele pontajelor angajaților
                 </p>
               </div>
               
@@ -117,7 +117,7 @@ export default function ReportsPage() {
                   onClick={() => setActiveView('exports')}
                   leftIcon={<Download className="h-4 w-4" />}
                 >
-                  Export Data
+                  Exportă Datele
                 </Button>
               </div>
             </div>
@@ -141,8 +141,8 @@ export default function ReportsPage() {
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900">Exporting...</h3>
-                      <p className="text-sm text-gray-600">Processing your timesheet data</p>
+                      <h3 className="text-lg font-medium text-gray-900">Exportare...</h3>
+                      <p className="text-sm text-gray-600">Se procesează datele pontajelor</p>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="w-32 bg-gray-200 rounded-full h-2">
@@ -159,7 +159,7 @@ export default function ReportsPage() {
               
               {exportState.lastExport && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Exports</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Exporturi recente</h3>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-3">

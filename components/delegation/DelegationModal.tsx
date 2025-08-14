@@ -170,7 +170,7 @@ export function DelegationModal({ employee, isOpen, onClose }: DelegationModalPr
           {/* Destination Store */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Delegate to Store *
+             Deleagă la Magazin *
             </label>
             <select
               {...register('to_store_id')}

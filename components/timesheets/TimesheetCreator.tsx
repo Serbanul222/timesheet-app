@@ -188,7 +188,7 @@ export function TimesheetCreator({
         {/* Store Selection */}
         <div>
           <label className="block text-sm font-medium text-gray-900 mb-1">
-            Store *
+            Magazin *
           </label>
           {loadingStores ? (
             <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>

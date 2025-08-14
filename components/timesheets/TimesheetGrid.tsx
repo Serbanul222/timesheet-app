@@ -197,7 +197,7 @@ export function TimesheetGrid({
             </div>
             <div className="flex-1">
               <h3 className="text-sm font-medium text-blue-800">
-                Complete Setup to View Timesheet
+                Completează setările de bază înainte de a salva
               </h3>
               <div className="mt-1 text-sm text-blue-700">
                 {getSetupErrors().map((error, index) => (
@@ -223,7 +223,7 @@ export function TimesheetGrid({
               </div>
               <div className="flex-1">
                 <h3 className="text-sm font-medium text-red-800">
-                  Validation Errors Prevent Saving
+                  Erorile de validare trebuie rezolvate înainte de a salva
                 </h3>
                 <p className="mt-1 text-sm text-red-700">
                   {validationResult.errorCount} error{validationResult.errorCount !== 1 ? 's' : ''} must be fixed before saving
@@ -355,17 +355,17 @@ export function TimesheetGrid({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-6m-2 0H3m2-2v-2m0-4v-2m0-4V9m0-4V3" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Setup Required</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Configurări necesare</h3>
               <p className="text-gray-600 mb-4">
-                Please complete the setup above to create your timesheet grid.
+               Te rog să completezi setările de bază înainte de a crea pontajul.
               </p>
               <div className="bg-blue-50 rounded-lg p-4 max-w-md mx-auto">
                 <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-2">Required steps:</p>
+                  <p className="font-medium mb-2">Pași necesari:</p>
                   <ol className="list-decimal list-inside space-y-1 text-left">
-                    <li>Select a store from the dropdown</li>
-                    <li>Choose employees for the timesheet</li>
-                    <li>Set the date range for the period</li>
+                    <li>Selectează un magazin din dropdown</li>
+                    <li>Alege angajații pentru pontaj</li>
+                    <li>Setează intervalul de date pentru perioadă</li>
                   </ol>
                 </div>
               </div>
@@ -375,8 +375,8 @@ export function TimesheetGrid({
               <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
               </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Employees Selected</h3>
-              <p className="text-gray-600">Select employees from the controls above to start creating timesheets</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Niciun angajat selectat</h3>
+              <p className="text-gray-600">Selectează angajați din controalele de mai sus pentru a începe crearea pontajelor</p>
             </>
           )}
         </div>

@@ -23,12 +23,12 @@ export function Header({ className = '' }: HeaderProps) {
   // Navigation items based on user permissions
   const navigationItems = [
     {
-      name: 'Timesheets',
+      name: 'Pontaje',
       href: '/timesheets',
       show: permissions.canViewTimesheets
     },
     {
-      name: 'Reports',
+      name: 'Raportare',
       href: '/reports',
       show: permissions.canViewTimesheets
     },

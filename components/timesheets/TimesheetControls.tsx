@@ -209,22 +209,22 @@ export function TimesheetControls({
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
       {/* Period & Store Selection */}
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Period & Setup</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Perioadă & Magazin</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
-            label="Start Date"
+            label="Data de început"
             type="date"
             value={timesheetData.startDate.split('T')[0]}
             onChange={(e) => handlePeriodChange('startDate', e.target.value)}
           />
           <Input
-            label="End Date"
+            label="Data de încheiere"
             type="date"
             value={timesheetData.endDate.split('T')[0]}
             onChange={(e) => handlePeriodChange('endDate', e.target.value)}
           />
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-1">Store *</label>
+            <label className="block text-sm font-medium text-gray-900 mb-1">Magazin *</label>
             {loadingStores ? (
               <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>
             ) : (
@@ -234,7 +234,7 @@ export function TimesheetControls({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
                 disabled={profile?.role === 'STORE_MANAGER' && stores.length === 1}
               >
-                <option value="">Select store...</option>
+                <option value="">Selectează magazin...</option>
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>{store.name}</option>
                 ))}
@@ -248,23 +248,23 @@ export function TimesheetControls({
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-4">
-            <label className="block text-sm font-medium text-gray-900">Select Employees</label>
-            
+            <label className="block text-sm font-medium text-gray-900">Selectează angajații</label>
+
             {/* ✅ NEW: Show employee type counts */}
             <div className="flex items-center space-x-2 text-xs">
               {historicalEmployees.length > 0 && (
                 <div className="text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  {historicalEmployees.length} from timesheet
+                  {historicalEmployees.length} din pontaj
                 </div>
               )}
               {delegatedEmployees.length > 0 && (
                 <div className="text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                  {delegatedEmployees.length} delegated here
+                  {delegatedEmployees.length} delegați aici
                 </div>
               )}
               {regularEmployees.length > 0 && (
                 <div className="text-green-600 bg-green-50 px-2 py-1 rounded">
-                  {regularEmployees.length} regular
+                  {regularEmployees.length} regulat
                 </div>
               )}
             </div>
@@ -272,7 +272,7 @@ export function TimesheetControls({
           
           <div className="flex items-center space-x-3">
             <div className="text-sm text-gray-600">
-              {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
+              {selectedEmployeeIds.length} angajaț{selectedEmployeeIds.length !== 1 ? 'i' : ''} selectați
             </div>
             <Button
               type="button"
@@ -284,7 +284,7 @@ export function TimesheetControls({
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Add Employee
+              Adaugă angajat
             </Button>
           </div>
         </div>
@@ -305,11 +305,11 @@ export function TimesheetControls({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div className="flex-1">
-                <h4 className="text-sm font-medium text-blue-800">Editing Existing Timesheet</h4>
+                <h4 className="text-sm font-medium text-blue-800">Editare pontaj existent</h4>
                 <p className="text-sm text-blue-700 mt-1">
-                  This timesheet includes employees who may have been delegated to other stores since it was created. 
-                  These employees ({historicalEmployees.map(emp => emp.full_name).join(', ')}) are shown with grayed-out 
-                  styling but remain editable for this timesheet.
+                  Acest pontaj include angajați care ar fi putut fi delegați la alte magazine de la crearea sa.
+                  Acești angajați ({historicalEmployees.map(emp => emp.full_name).join(', ')}) sunt afișați cu un stil gri,
+                  dar rămân editabili pentru acest pontaj.
                 </p>
               </div>
             </div>
@@ -322,14 +322,14 @@ export function TimesheetControls({
               <svg className="w-8 h-8 mx-auto mb-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-6m-2 0H3" />
               </svg>
-              <p className="text-sm font-medium">Select a store above to view employees</p>
-              <p className="text-xs mt-1">Employees will be loaded only for the selected store</p>
+              <p className="text-sm font-medium">Selectează un magazin mai sus pentru a vizualiza angajații</p>
+              <p className="text-xs mt-1">Angajații vor fi încărcați doar pentru magazinul selectat</p>
             </div>
           </div>
         ) : loadingEmployees ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-sm text-gray-600">Loading employees...</span>
+            <span className="ml-2 text-sm text-gray-600">Încărcare angajați...</span>
           </div>
         ) : (
           <EmployeeSelector

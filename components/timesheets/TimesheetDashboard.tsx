@@ -33,6 +33,13 @@ export function TimesheetDashboard({
   const permissions = usePermissions()
   const router = useRouter()
   
+  // Period labels mapping - like a HashMap in Java
+  const periodLabels: Record<DashboardFilters['period'], string> = {
+    week: 'Săptămână',
+    month: 'Lună',
+    quarter: 'Trimestru'
+  }
+  
   // Helper function to format date to YYYY-MM-DD with null safety
   const formatDateString = (date: Date): string => {
     const isoString = date.toISOString()
@@ -157,7 +164,7 @@ export function TimesheetDashboard({
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-gray-600">Încărcare panou...</p>
         </div>
       </div>
     )
@@ -177,8 +184,8 @@ export function TimesheetDashboard({
             />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
-        <p className="text-gray-600">You don't have permission to view the timesheet dashboard.</p>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Acces restriționat</h2>
+        <p className="text-gray-600">Nu ai permisiunea de a vizualiza panoul de control al pontajelor.</p>
       </div>
     )
   }
@@ -190,9 +197,9 @@ export function TimesheetDashboard({
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Timesheet Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Panou de control pontaje</h1>
             <p className="text-gray-600 mt-1">
-              Overview of timesheet activity and performance metrics
+              Crează un nou pontaj
             </p>
           </div>
           
@@ -212,7 +219,7 @@ export function TimesheetDashboard({
                 </svg>
               }
             >
-              Refresh
+              Reîmprospătează
             </Button>
             
             {permissions.canCreateTimesheets && (
@@ -229,7 +236,7 @@ export function TimesheetDashboard({
                   </svg>
                 }
               >
-                Create New
+                Crează un nou pontaj
               </Button>
             )}
           </div>
@@ -240,7 +247,7 @@ export function TimesheetDashboard({
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Time Period</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Perioada de timp</h3>
             <div className="flex space-x-2">
               {(['week', 'month', 'quarter'] as const).map((period) => (
                 <Button
@@ -249,7 +256,7 @@ export function TimesheetDashboard({
                   size="sm"
                   onClick={() => handlePeriodChange(period)}
                 >
-                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                  {periodLabels[period]}
                 </Button>
               ))}
             </div>
@@ -257,14 +264,14 @@ export function TimesheetDashboard({
           
           <div className="flex space-x-4">
             <Input
-              label="From"
+              label="De la"
               type="date"
               value={filters.startDate}
               onChange={(e) => handleDateChange('startDate', e.target.value)}
               containerClassName="w-auto"
             />
             <Input
-              label="To"
+              label="Până la"
               type="date"
               value={filters.endDate}
               onChange={(e) => handleDateChange('endDate', e.target.value)}

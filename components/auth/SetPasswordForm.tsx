@@ -76,14 +76,14 @@ export function SetPasswordForm({ email, onSuccess }: { email: string; onSuccess
   return (
     <div className="w-full max-w-md space-y-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Set Your Password</h1>
-        <p className="mt-2 text-sm text-gray-600">Create a secure password for {email}</p>
+        <h1 className="text-2xl font-bold text-gray-900">Setează o parolă</h1>
+        <p className="mt-2 text-sm text-gray-600">Creează o parolă sigură pentru {email}</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            New Password
+            Parola nouă
           </label>
           <div className="relative">
             <input
@@ -112,7 +112,7 @@ export function SetPasswordForm({ email, onSuccess }: { email: string; onSuccess
 
         <div>
           <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm Password
+            Confirmă Parola
           </label>
           <input
             {...register('confirmPassword')}
@@ -128,11 +128,11 @@ export function SetPasswordForm({ email, onSuccess }: { email: string; onSuccess
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-          <p className="text-sm font-medium text-blue-800 mb-1">Password Requirements:</p>
+          <p className="text-sm font-medium text-blue-800 mb-1">Cerințe pentru Parolă:</p>
           <ul className="text-xs text-blue-700 space-y-1">
-            <li>• At least 8 characters</li>
-            <li>• Uppercase and lowercase letters</li>
-            <li>• At least one number</li>
+            <li>•Cel puțin 8 caractere</li>
+            <li>• Litere mari și mici</li>
+            <li>• Cel puțin un număr</li>
           </ul>
         </div>
 

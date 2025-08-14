@@ -354,7 +354,7 @@ export class TimesheetValidationRules {
     if (!context.storeId || context.storeId.trim() === '') {
       return {
         isValid: false,
-        message: 'Store must be selected before creating timesheet',
+        message: 'Magazinul trebuie selectat înainte de a crea pontajul',
         type: 'error'
       }
     }
