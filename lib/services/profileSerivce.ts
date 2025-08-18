@@ -147,44 +147,47 @@ export class ProfileService {
   /**
    * Validate profile data before creation
    */
-  static validateProfile(data: CreateProfileRequest): { isValid: boolean; errors: Record<string, string> } {
-    const errors: Record<string, string> = {}
+// lib/services/profileService.ts - ZONE VALIDATION FIX
+// Only the validateProfile method needs this change:
 
-    // Email validation
-    if (!data.email || !data.email.trim()) {
-      errors.email = 'Email is required'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-      errors.email = 'Invalid email format'
-    }
+static validateProfile(data: CreateProfileRequest): { isValid: boolean; errors: Record<string, string> } {
+  const errors: Record<string, string> = {}
 
-    // Name validation
-    if (!data.full_name || !data.full_name.trim()) {
-      errors.full_name = 'Full name is required'
-    } else if (data.full_name.trim().length < 2) {
-      errors.full_name = 'Full name must be at least 2 characters'
-    }
-
-    // Role validation
-    if (!data.role) {
-      errors.role = 'Role is required'
-    } else if (!['HR', 'ASM', 'STORE_MANAGER'].includes(data.role)) {
-      errors.role = 'Invalid role'
-    }
-
-    // Role-specific validations
-    if (data.role === 'ASM' && !data.zone_id) {
-      errors.zone_id = 'Zone is required for ASM role'
-    }
-
-    if (data.role === 'STORE_MANAGER' && !data.store_id) {
-      errors.store_id = 'Store is required for Store Manager role'
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    }
+  // Email validation
+  if (!data.email || !data.email.trim()) {
+    errors.email = 'Email is required'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+    errors.email = 'Invalid email format'
   }
+
+  // Name validation
+  if (!data.full_name || !data.full_name.trim()) {
+    errors.full_name = 'Full name is required'
+  } else if (data.full_name.trim().length < 2) {
+    errors.full_name = 'Full name must be at least 2 characters'
+  }
+
+  // Role validation
+  if (!data.role) {
+    errors.role = 'Role is required'
+  } else if (!['HR', 'ASM', 'STORE_MANAGER'].includes(data.role)) {
+    errors.role = 'Invalid role'
+  }
+
+  // ✅ FIXED: Only ASM requires zone selection - STORE_MANAGER gets zone from store
+  if (data.role === 'ASM' && !data.zone_id) {
+    errors.zone_id = 'Zone is required for ASM role'
+  }
+
+  if (data.role === 'STORE_MANAGER' && !data.store_id) {
+    errors.store_id = 'Store is required for Store Manager role'
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  }
+}
 
   /**
    * Process bulk import data

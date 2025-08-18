@@ -160,7 +160,7 @@ export function AdminUserList() {
     if (user.auth_status.is_pending_setup) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-          Pending Setup
+          În așteptare
         </span>
       );
     }
@@ -168,7 +168,7 @@ export function AdminUserList() {
     if (user.auth_status.has_completed_setup) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          Active
+          Activ
         </span>
       );
     }
@@ -176,7 +176,7 @@ export function AdminUserList() {
     // This state is less likely now but is a good fallback.
     return (
       <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-        Unverified
+        Neverificat
       </span>
     );
   }
@@ -222,7 +222,7 @@ export function AdminUserList() {
     <div className="space-y-6">
       {/* Header with Action Buttons */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-gray-900">User Management</h2>
+        <h2 className="text-lg font-medium text-gray-900">Administrare utilizatori</h2>
         <div className="flex space-x-3">
           {viewMode === 'list' && (
             <>
@@ -230,13 +230,13 @@ export function AdminUserList() {
                 onClick={() => setViewMode('create')}
                 className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                Create Profile
+                Crează profil
               </button>
               <button
                 onClick={() => setViewMode('bulk-import')}
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                Bulk Import
+                Import în masă
               </button>
               <button
                 onClick={() => {
@@ -244,7 +244,7 @@ export function AdminUserList() {
                 }}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                Refresh
+                Reîmprospătează
               </button>
             </>
           )}
@@ -288,7 +288,7 @@ export function AdminUserList() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total Profiles</dt>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Total profile</dt>
                     <dd className="text-lg font-medium text-gray-900">{stats.total}</dd>
                   </dl>
                 </div>
@@ -306,7 +306,7 @@ export function AdminUserList() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Active Users</dt>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Utilizatori activi</dt>
                     <dd className="text-lg font-medium text-gray-900">{stats.active}</dd>
                   </dl>
                 </div>
@@ -324,7 +324,7 @@ export function AdminUserList() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Pending Setup</dt>
+                    <dt className="text-sm font-medium text-gray-500 truncate">În așteptare</dt>
                     <dd className="text-lg font-medium text-gray-900">{stats.pending}</dd>
                   </dl>
                 </div>
@@ -342,7 +342,7 @@ export function AdminUserList() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">No Account</dt>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Fără cont</dt>
                     <dd className="text-lg font-medium text-gray-900">{stats.noAccount}</dd>
                   </dl>
                 </div>
@@ -359,7 +359,7 @@ export function AdminUserList() {
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search by name or email..."
+                placeholder="Caută după nume sau email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -371,10 +371,10 @@ export function AdminUserList() {
                 onChange={(e) => setRoleFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
-                <option value="all">All Roles</option>
+                <option value="all">Toate rolurile</option>
                 <option value="HR">HR</option>
                 <option value="ASM">ASM</option>
-                <option value="STORE_MANAGER">Store Manager</option>
+                <option value="STORE_MANAGER">Manager de magazin</option>
               </select>
             </div>
           </div>
@@ -414,20 +414,20 @@ export function AdminUserList() {
                           <p className="text-sm text-gray-500">{user.email}</p>
                           <div className="flex flex-wrap gap-2 text-xs text-gray-400 mt-1">
                             {user.zone && (
-                              <span>Zone: {user.zone.name}</span>
+                              <span>Zonă: {user.zone.name}</span>
                             )}
                             {user.store && (
-                              <span>Store: {user.store.name}</span>
+                              <span>Magazin: {user.store.name}</span>
                             )}
                             {user.auth_status?.last_sign_in_at ? (
-                              <span>Last login: {new Date(user.auth_status.last_sign_in_at).toLocaleDateString()}</span>
+                              <span>Ultima conectare: {new Date(user.auth_status.last_sign_in_at).toLocaleDateString()}</span>
                             ) : (
-                              <span>Never signed in</span>
+                              <span>Niciodată conectat</span>
                             )}
                           </div>
                           {user.auth_status?.account_created_at && (
                             <p className="text-xs text-gray-400">
-                              Account created: {new Date(user.auth_status.account_created_at).toLocaleDateString()}
+                              Cont creat: {new Date(user.auth_status.account_created_at).toLocaleDateString()}
                             </p>
                           )}
                         </div>
@@ -439,7 +439,7 @@ export function AdminUserList() {
                             disabled={actionLoading === user.id}
                             className="px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
-                            {actionLoading === user.id ? 'Creating...' : 'Create Account'}
+                            {actionLoading === user.id ? 'Se crează...' : 'Creare cont'}
                           </button>
                         ) : (
                           <button
@@ -447,7 +447,7 @@ export function AdminUserList() {
                             disabled={actionLoading === user.id}
                             className="px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
-                            {actionLoading === user.id ? 'Sending...' : 'Reset Password'}
+                            {actionLoading === user.id ? 'Trimitere...' : 'Resetare parolă'}
                           </button>
                         )}
                       </div>

@@ -156,9 +156,9 @@ export function TimesheetCreator({
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Create New Timesheet</h2>
+        <h2 className="text-xl font-semibold text-gray-900">Crează un nou pontaj</h2>
         <p className="text-sm text-gray-600 mt-1">
-          Select period and employees to create a new timesheet grid with time intervals and status tracking
+          Selectează perioada și angajații pentru a crea un nou pontaj cu intervale de timp și urmărirea stării
         </p>
       </div>
 
@@ -166,7 +166,7 @@ export function TimesheetCreator({
         {/* Period Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
-            label="Start Date *"
+            label="Data de început *"
             type="date"
             {...register('startDate')}
             onChange={(e) => {
@@ -177,7 +177,7 @@ export function TimesheetCreator({
           />
           
           <Input
-            label="End Date *"
+            label="Data de încheiere *"
             type="date"
             {...register('endDate')}
             error={errors.endDate?.message}
@@ -200,7 +200,7 @@ export function TimesheetCreator({
               }`}
               disabled={profile?.role === 'STORE_MANAGER' && stores.length === 1}
             >
-              <option value="">Select a store...</option>
+              <option value="">Selectează un magazin...</option>
               {stores.map((store) => (
                 <option key={store.id} value={store.id}>
                   {store.name}
@@ -213,7 +213,7 @@ export function TimesheetCreator({
           )}
           {profile?.role === 'STORE_MANAGER' && stores.length === 1 && (
             <p className="mt-1 text-sm text-gray-500">
-              Your assigned store is automatically selected
+              Magazinul tău asignat este selectat automat
             </p>
           )}
         </div>
@@ -221,13 +221,13 @@ export function TimesheetCreator({
         {/* Employee Selection */}
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-900">
-            Select Employees *
+            Selectează angajații *
           </label>
           
           {loadingEmployees ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-sm text-gray-600">Loading employees...</span>
+              <span className="ml-2 text-sm text-gray-600">Se încarcă angajații...</span>
             </div>
           ) : (
             <EmployeeSelector
@@ -244,7 +244,7 @@ export function TimesheetCreator({
           
           {selectedEmployeeIds.length > 0 && (
             <div className="text-sm text-gray-600">
-              {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
+              {selectedEmployeeIds.length} angajat{selectedEmployeeIds.length !== 1 ? 's' : ''} selectat
             </div>
           )}
         </div>
@@ -254,12 +254,12 @@ export function TimesheetCreator({
           <h4 className="text-sm font-medium text-blue-800 mb-2">✨ Enhanced Grid Features</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-blue-700">
             <div>
-              <p><strong>Time Intervals:</strong> Enter "10-12" or "9:30-17:30"</p>
-              <p><strong>Auto-calculation:</strong> Hours calculated automatically</p>
+              <p><strong>Intervale de timp:</strong> Introduceți "10-12" sau "9:30-17:30"</p>
+              <p><strong>Auto-calculare:</strong> Orele sunt calculate automat</p>
             </div>
             <div>
-              <p><strong>Status Tracking:</strong> CO, CM, Dispensation support</p>
-              <p><strong>Comments:</strong> Add notes to any cell</p>
+              <p><strong>Urmărire status:</strong> CO, CM, asistență pentru dispensă</p>
+              <p><strong>Comentarii:</strong> Adăugați note în orice celulă</p>
             </div>
           </div>
         </div>
@@ -267,13 +267,13 @@ export function TimesheetCreator({
         {/* Summary */}
         {watchStartDate && selectedEmployeeIds.length > 0 && watchStoreId && (
           <div className="bg-green-50 border border-green-200 rounded-md p-4">
-            <h4 className="text-sm font-medium text-green-800 mb-2">📊 Timesheet Summary</h4>
+            <h4 className="text-sm font-medium text-green-800 mb-2">📊 Rezumat pontaj</h4>
             <div className="text-sm text-green-700 space-y-1">
-              <p><strong>Period:</strong> {new Date(watchStartDate).toLocaleDateString()} - {watch('endDate') ? new Date(watch('endDate')).toLocaleDateString() : '...'}</p>
-              <p><strong>Employees:</strong> {selectedEmployeeIds.length} selected</p>
-              <p><strong>Store:</strong> {stores.find(s => s.id === watchStoreId)?.name || 'Selected store'}</p>
-              <p><strong>Days:</strong> {watchStartDate && watch('endDate') ? 
-                Math.ceil((new Date(watch('endDate')).getTime() - new Date(watchStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 0} days
+              <p><strong>Perioadă:</strong> {new Date(watchStartDate).toLocaleDateString()} - {watch('endDate') ? new Date(watch('endDate')).toLocaleDateString() : '...'}</p>
+              <p><strong>Angajați:</strong> {selectedEmployeeIds.length} selectați</p>
+              <p><strong>Magazin:</strong> {stores.find(s => s.id === watchStoreId)?.name || 'Magazin selectat'}</p>
+              <p><strong>Zile:</strong> {watchStartDate && watch('endDate') ? 
+                Math.ceil((new Date(watch('endDate')).getTime() - new Date(watchStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 0} zile
               </p>
             </div>
           </div>
@@ -287,7 +287,7 @@ export function TimesheetCreator({
             onClick={onCancel}
             disabled={isSubmitting}
           >
-            Cancel
+            Anulează
           </Button>
           
           <Button

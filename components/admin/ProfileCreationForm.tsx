@@ -19,7 +19,7 @@ const profileSchema = z.object({
   zone_id: z.string().optional(),
   store_id: z.string().optional()
 }).superRefine((data, ctx) => {
-  // Role-specific validations
+  // Only ASM requires zone selection - STORE_MANAGER zone is handled at backend level
   if (data.role === 'ASM' && !data.zone_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -99,15 +99,16 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
     fetchData()
   }, [])
 
-  // Filter stores based on selected zone
+  // Filter stores based on selected zone (only for ASM role)
   useEffect(() => {
-    if (watchZoneId) {
+    if (watchRole === 'ASM' && watchZoneId) {
       const filtered = stores.filter(store => store.zone_id === watchZoneId)
       setFilteredStores(filtered)
     } else {
-      setFilteredStores(stores)
+      // For STORE_MANAGER, show all stores; for ASM without zone, show empty
+      setFilteredStores(watchRole === 'STORE_MANAGER' ? stores : [])
     }
-  }, [watchZoneId, stores])
+  }, [watchRole, watchZoneId, stores])
 
   // Clear dependent fields when role changes
   useEffect(() => {
@@ -117,23 +118,21 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
     }
   }, [watchRole, setValue])
 
-  // ✅ FIXED: Use API endpoint instead of direct Supabase operations
   const onSubmit = async (data: ProfileFormData) => {
     try {
       console.log('🔧 ProfileCreationForm: Submitting profile data via API')
       
-      // Prepare the profile data
+      // Prepare the profile data - zone_id is only sent for ASM role
       const profileData = {
         email: data.email.trim().toLowerCase(),
         full_name: data.full_name.trim(),
         role: data.role,
-        zone_id: data.zone_id || undefined,
-        store_id: data.store_id || undefined
+        ...(data.role === 'ASM' && data.zone_id && { zone_id: data.zone_id }),
+        ...(data.role === 'STORE_MANAGER' && data.store_id && { store_id: data.store_id })
       }
 
       console.log('📝 Profile data to submit:', profileData)
 
-      // ✅ Use the API route instead of direct Supabase
       const response = await fetch('/api/admin/profiles', {
         method: 'POST',
         headers: {
@@ -145,9 +144,7 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
       const result = await response.json()
 
       if (!response.ok) {
-        // Handle validation errors from API
         if (result.details && typeof result.details === 'object') {
-          // Show field-specific errors
           const errorMessages = Object.entries(result.details)
             .map(([field, message]) => `${field}: ${message}`)
             .join(', ')
@@ -169,7 +166,6 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
         description: `Profile for ${data.full_name} has been created`
       })
 
-      // Pass the created profile back to parent component
       onProfileCreated(result.profile)
 
     } catch (error) {
@@ -194,10 +190,18 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
     )
   }
 
+  // Determine grid columns based on role
+  const getGridCols = () => {
+    if (watchRole === 'HR') return 'grid-cols-1'
+    if (watchRole === 'ASM') return 'grid-cols-1 md:grid-cols-3'
+    if (watchRole === 'STORE_MANAGER') return 'grid-cols-1 md:grid-cols-2'
+    return 'grid-cols-1'
+  }
+
   return (
     <div className="bg-white rounded-lg border border-gray-300 p-6 mb-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900">Create New Profile</h3>
+        <h3 className="text-lg font-medium text-gray-900">Crează un profil nou</h3>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -208,9 +212,9 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
-            label="Email Address *"
+            label="Adresă email*"
             type="email"
-            placeholder="employee@company.com"
+            placeholder="popescu.ion@lensa.ro"
             {...register('email')}
             error={errors.email?.message}
           />
@@ -223,7 +227,7 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid ${getGridCols()} gap-4`}>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-1">
               Rol *
@@ -242,10 +246,11 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
             {errors.role && <p className="text-sm text-red-600 mt-1">{errors.role.message}</p>}
           </div>
 
-          {(watchRole === 'ASM' || watchRole === 'STORE_MANAGER') && (
+          {/* Zone field - only shown for ASM */}
+          {watchRole === 'ASM' && (
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                Zone {watchRole === 'ASM' ? '*' : ''}
+                Zone *
               </label>
               <select
                 {...register('zone_id')}
@@ -253,7 +258,7 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
                   errors.zone_id ? 'border-red-500' : ''
                 }`}
               >
-                <option value="">Select zone...</option>
+                <option value="">Selectează zonă...</option>
                 {zones.map((zone) => (
                   <option key={zone.id} value={zone.id}>
                     {zone.name}
@@ -264,6 +269,7 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
             </div>
           )}
 
+          {/* Store field - only shown for STORE_MANAGER */}
           {watchRole === 'STORE_MANAGER' && (
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
@@ -274,19 +280,15 @@ export function ProfileCreationForm({ onProfileCreated, onCancel }: ProfileCreat
                 className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 ${
                   errors.store_id ? 'border-red-500' : ''
                 }`}
-                disabled={!watchZoneId}
               >
                 <option value="">Selectează magazin...</option>
-                {filteredStores.map((store) => (
+                {stores.map((store) => (
                   <option key={store.id} value={store.id}>
                     {store.name}
                   </option>
                 ))}
               </select>
               {errors.store_id && <p className="text-sm text-red-600 mt-1">{errors.store_id.message}</p>}
-              {watchRole === 'STORE_MANAGER' && !watchZoneId && (
-                <p className="text-xs text-gray-500 mt-1">Select a zone first</p>
-              )}
             </div>
           )}
         </div>

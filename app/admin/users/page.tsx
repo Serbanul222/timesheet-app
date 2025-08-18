@@ -50,9 +50,9 @@ export default function AdminUsersPage() {
     <MainLayout>
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">User Administration</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Administrare utilizatori</h1>
           <p className="mt-2 text-gray-600">
-            Manage user accounts, roles, and access to the timesheet system.
+            Gestionați conturile de utilizator, rolurile și accesul la sistemul de pontaje.
           </p>
         </div>
         
