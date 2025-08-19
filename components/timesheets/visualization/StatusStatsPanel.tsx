@@ -40,8 +40,8 @@ export function StatusStatsPanel({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Status Data</h3>
-        <p className="text-gray-600">No status breakdown data available for this period</p>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Nu există date pentru status</h3>
+        <p className="text-gray-600">Nu sunt disponibile date pentru analiza statusului pentru această perioadă</p>
       </div>
     )
   }
@@ -54,10 +54,11 @@ export function StatusStatsPanel({
       
       {statusData.length > 0 && (
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Status Overview</h4>
+          <h4 className="text-sm font-medium text-gray-900 mb-2">Prezentare generală a statusului</h4>
           <p className="text-xs text-gray-600">
-            This breakdown shows the distribution of different work statuses across all timesheet entries 
-            in the selected period. Each status represents time allocation patterns.
+           Această defalcare arată distribuția diferitelor stări de lucru pentru toate pontajele înregistrate în perioada selectată. 
+           Fiecare status reprezintă un tipar de alocare a timpului.
+
           </p>
         </div>
       )}

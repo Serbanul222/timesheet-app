@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetCell.tsx - ENHANCED: Added delegation date restrictions
+// components/timesheets/TimesheetCell.tsx - FIXED: Proper status handling and validation
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -27,7 +27,7 @@ interface TimesheetCellProps {
   readOnly: boolean
   onSelect: () => void
   onUpdate: (field: 'timeInterval' | 'status' | 'notes', value: string | DayStatus) => void
-  // ✅ NEW: Delegation context for validation
+  // Delegation context for validation
   delegations?: Array<{
     employee_id: string
     valid_from: string
@@ -45,31 +45,65 @@ export function TimesheetCell({
   readOnly,
   onSelect,
   onUpdate,
-  delegations = [] // ✅ NEW: Delegation data
+  delegations = []
 }: TimesheetCellProps) {
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [editNotesValue, setEditNotesValue] = useState('')
   const [showValidation, setShowValidation] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
-  // ✅ ENHANCED: Real-time validation with delegation context
+  // ✅ FIXED: Ensure all values are properly defined with safe defaults
+  const safeTimeInterval = dayData.timeInterval || ''
+  const safeStatus: DayStatus = dayData.status || 'alege' // ✅ FIXED: Default to 'alege' if undefined
+  const safeHours = dayData.hours || 0
+  const safeNotes = dayData.notes || ''
+  
+  // ✅ FIXED: Debug logging to catch undefined values
+  useEffect(() => {
+    if (!dayData.status) {
+      console.warn('TimesheetCell: dayData.status is undefined for:', {
+        employeeId,
+        date,
+        dayData,
+        safeStatus
+      })
+    }
+  }, [dayData.status, employeeId, date, dayData, safeStatus])
+  
+  // ✅ ENHANCED: Real-time validation with proper safe values
   const { 
     validationResult, 
     suggestedFix, 
-    isDelegationRestricted 
+    isDelegationRestricted,
+    getValidationSummary // ✅ Added for debugging
   } = useCellValidation({
-    timeInterval: dayData.timeInterval || '',
-    status: dayData.status,
-    hours: dayData.hours,
-    notes: dayData.notes,
-    isWeekend,
-    // ✅ NEW: Pass delegation context
+    timeInterval: safeTimeInterval,
+    status: safeStatus, // ✅ FIXED: Use safe status
+    hours: safeHours,
+    notes: safeNotes,
+    isWeekend: isWeekend || false,
     employeeId,
     cellDate: date,
     delegations
   })
   
-  // ✅ NEW: Determine if cell should be read-only due to delegation
+  // ✅ DEBUG: Log validation context when there are issues
+  useEffect(() => {
+    if (!validationResult.isValid && validationResult.type === 'error') {
+      console.log('TimesheetCell validation failed:', {
+        summary: getValidationSummary(),
+        dayData,
+        safeValues: {
+          timeInterval: safeTimeInterval,
+          status: safeStatus,
+          hours: safeHours,
+          notes: safeNotes
+        }
+      })
+    }
+  }, [validationResult, getValidationSummary, dayData, safeTimeInterval, safeStatus, safeHours, safeNotes])
+  
+  // Determine if cell should be read-only due to delegation
   const isEffectivelyReadOnly = readOnly || isDelegationRestricted
   
   // Handle right-click for notes
@@ -77,7 +111,7 @@ export function TimesheetCell({
     if (isEffectivelyReadOnly) return
     e.preventDefault()
     e.stopPropagation()
-    setEditNotesValue(dayData.notes || '')
+    setEditNotesValue(safeNotes)
     setIsEditingNotes(true)
     onSelect()
   }
@@ -145,7 +179,8 @@ export function TimesheetCell({
       return 'bg-gray-50'
     }
     
-    switch (dayData.status) {
+    // ✅ FIXED: Use safe status for switch
+    switch (safeStatus) {
       case 'CO': return 'bg-red-50'
       case 'CM': return 'bg-yellow-50'
       case 'dispensa': return 'bg-purple-50'
@@ -154,14 +189,30 @@ export function TimesheetCell({
     }
   }
   
-  const hasNotes = dayData.notes && dayData.notes.trim()
+  const hasNotes = safeNotes && safeNotes.trim()
+  
+  // ✅ FIXED: Handle update functions with proper validation
+  const handleTimeIntervalUpdate = (value: string) => {
+    console.log('TimesheetCell: Updating timeInterval:', value)
+    onUpdate('timeInterval', value)
+  }
+  
+  const handleStatusUpdate = (value: DayStatus) => {
+    console.log('TimesheetCell: Updating status:', value)
+    onUpdate('status', value)
+  }
+  
+  const handleNotesUpdate = (value: string) => {
+    console.log('TimesheetCell: Updating notes:', value)
+    onUpdate('notes', value)
+  }
   
   return (
     <div className="relative">
       <div
         className={`w-12 border-r border-gray-300 cursor-pointer relative flex flex-col ${getCellBg()} ${
           isSelected ? 'ring-2 ring-blue-400' : ''
-        } ${isDelegationRestricted ? 'opacity-60' : ''}`} // ✅ NEW: Visual indication for restricted cells
+        } ${isDelegationRestricted ? 'opacity-60' : ''}`}
         onClick={onSelect}
         onContextMenu={handleRightClick}
         style={{ minHeight: '44px' }}
@@ -170,13 +221,15 @@ export function TimesheetCell({
         {/* Time Section */}
         <div className="flex-1 flex items-center justify-center px-1">
           <TimeIntervalInput
-            timeInterval={dayData.timeInterval || ''}
-            status={dayData.status}
-            hours={dayData.hours}
-            notes={dayData.notes}
+            timeInterval={safeTimeInterval}
+            status={safeStatus}
+            hours={safeHours}
+            notes={safeNotes}
             isWeekend={isWeekend}
-            readOnly={isEffectivelyReadOnly} // ✅ UPDATED: Use effective read-only state
-            onTimeIntervalChange={(value) => onUpdate('timeInterval', value)}
+            readOnly={isEffectivelyReadOnly}
+            employeeId={employeeId}
+            cellDate={date}
+            onTimeIntervalChange={handleTimeIntervalUpdate} // ✅ FIXED: Use wrapper function
             onFocus={onSelect}
           />
         </div>
@@ -184,13 +237,13 @@ export function TimesheetCell({
         {/* Status Section */}
         <div className="flex items-center justify-center pb-1 relative">
           <StatusSelector
-            status={dayData.status}
-            timeInterval={dayData.timeInterval || ''}
-            hours={dayData.hours}
-            notes={dayData.notes}
+            status={safeStatus}
+            timeInterval={safeTimeInterval}
+            hours={safeHours}
+            notes={safeNotes}
             isWeekend={isWeekend}
-            readOnly={isEffectivelyReadOnly} // ✅ UPDATED: Use effective read-only state
-            onStatusChange={(value) => onUpdate('status', value)}
+            readOnly={isEffectivelyReadOnly}
+            onStatusChange={handleStatusUpdate} // ✅ FIXED: Use wrapper function
           />
         </div>
 
@@ -203,7 +256,7 @@ export function TimesheetCell({
           />
         )}
 
-        {/* ✅ NEW: Delegation restriction indicator */}
+        {/* Delegation restriction indicator */}
         {isDelegationRestricted && (
           <div className="absolute top-1 right-1">
             <div className="w-2 h-2 bg-orange-500 rounded-full" title="Delegation restricted" />

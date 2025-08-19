@@ -1,35 +1,29 @@
-// components/timesheets/EmployeeDelegationPanel.tsx
+
+// FILE: components/timesheets/EmployeeDelegationPanel.tsx - REWRITTEN
 'use client'
 
 import { DelegationButton } from '@/components/delegation/DelegationButton'
 import { usePermissions } from '@/hooks/auth/usePermissions'
 import { type EmployeeWithDetails } from '@/hooks/data/useEmployees'
 
+// ✅ Add the new 'onDelegationChange' prop to the interface
 interface EmployeeDelegationPanelProps {
   employees: EmployeeWithDetails[]
   selectedEmployeeIds: string[]
   regularEmployees: EmployeeWithDetails[]
   delegatedEmployees: EmployeeWithDetails[]
+  onDelegationChange: () => void;
 }
 
 export function EmployeeDelegationPanel({
   employees,
   selectedEmployeeIds,
   regularEmployees,
-  delegatedEmployees
+  delegatedEmployees,
+  onDelegationChange // Receive the function
 }: EmployeeDelegationPanelProps) {
   const permissions = usePermissions()
 
-  // Debug info
-  console.log('EmployeeDelegationPanel Debug:', {
-    canCreateDelegation: permissions.canCreateDelegation,
-    selectedEmployeeIds: selectedEmployeeIds.length,
-    totalEmployees: employees.length,
-    regularEmployees: regularEmployees.length,
-    delegatedEmployees: delegatedEmployees.length
-  })
-
-  // Always show if we have selected employees (remove permission check for now to debug)
   if (selectedEmployeeIds.length === 0) {
     return null
   }
@@ -64,18 +58,13 @@ export function EmployeeDelegationPanel({
             </div>
             
             <div className="flex items-center space-x-2">
-              {/* Show delegation info for delegated employees */}
-              {employee.isDelegated && employee.delegation && (
-                <div className="text-xs text-gray-600">
-                  Until {new Date(employee.delegation.valid_until).toLocaleDateString()}
-                </div>
-              )}
               
-              {/* Always show delegation button for testing */}
+              {/* ✅ Pass the onDelegationChange function to the DelegationButton as a success callback. */}
               <DelegationButton
                 employee={employee}
                 size="sm"
                 showLabel={true}
+                onSuccess={onDelegationChange}
               />
             </div>
           </div>

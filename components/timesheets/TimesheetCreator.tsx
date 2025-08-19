@@ -16,7 +16,7 @@ const timesheetCreatorSchema = z.object({
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().min(1, 'End date is required'),
   storeId: z.string().min(1, 'Store is required'),
-  employeeIds: z.array(z.string()).min(1, 'At least one employee must be selected')
+  employeeIds: z.array(z.string()).min(1, 'Cel puțin un angajat trebuie să fie selectat')
 }).refine((data) => {
   const start = new Date(data.startDate)
   const end = new Date(data.endDate)

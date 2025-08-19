@@ -1,330 +1,199 @@
-// lib/timesheet-utils.ts
-
-import { type DayStatus } from '@/types/timesheet-grid'
-
-// Updated DayData interface to match our new structure
-interface DayData {
-  timeInterval?: string
-  startTime?: string
-  endTime?: string
-  hours: number
-  status: DayStatus
-  notes: string
-}
-
+// lib/timesheet-utils.ts - Updated with European date formatting
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isWeekend as isFnsWeekend } from 'date-fns'
+import { type TimesheetGridData } from '@/types/timesheet-grid'
 /**
- * Generate array of dates between start and end date (inclusive)
- * Like creating a range in Java - generates consecutive dates
- */
-export function generateDateRange(startDate: Date, endDate: Date): Date[] {
-  const dates: Date[] = []
-  const currentDate = new Date(startDate)
-  
-  // Ensure we're working with local midnight times
-  currentDate.setHours(0, 0, 0, 0)
-  const end = new Date(endDate)
-  end.setHours(0, 0, 0, 0)
-  
-  while (currentDate <= end) {
-    // Create date at noon to avoid timezone issues
-    const dateAtNoon = new Date(currentDate)
-    dateAtNoon.setHours(12, 0, 0, 0)
-    dates.push(dateAtNoon)
-    currentDate.setDate(currentDate.getDate() + 1)
-  }
-  
-  return dates
-}
-
-/**
- * Format date to YYYY-MM-DD in local timezone
- * This prevents timezone shift issues when saving to database
+ * ✅ UPDATED: Format date for local display (DD/MM/YYYY format)
  */
 export function formatDateLocal(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return format(date, 'dd/MM/yyyy')
 }
 
-/**
- * Calculate total hours from day data
- * Similar to a reduce operation in Java streams
- */
-export function calculateTotalHours(days: Record<string, DayData>): number {
-  return Object.values(days).reduce((total, day) => total + day.hours, 0)
-}
+export function generateDefaultTimesheetData(): TimesheetGridData {
+  const period = getDefaultPeriod();
+  
+  // Get the current time as an ISO string
+  const now = new Date().toISOString();
 
-/**
- * Parse time interval string and calculate hours
- * Examples: "10-12" -> 2 hours, "9:30-17:30" -> 8 hours, "22-06" -> 8 hours (overnight)
- * This is like a utility method in Java that parses strings and returns structured data
- */
-export function parseTimeInterval(interval: string): { startTime: string; endTime: string; hours: number } | null {
-  if (!interval || !interval.trim()) return null
-  
-  // Parse formats like "10-12", "9:30-17:30", "10-14", "22-06" (overnight)
-  const regex = /^(\d{1,2}(?::\d{2})?)-(\d{1,2}(?::\d{2})?)$/
-  const match = interval.trim().match(regex)
-  
-  if (!match) return null
-  
-  const [, start, end] = match
-  
-  // Normalize time format (add :00 if missing)
-  const startTime = start.includes(':') ? start : `${start}:00`
-  const endTime = end.includes(':') ? end : `${end}:00`
-  
-  // Validate time format
-  if (!isValidTime(startTime) || !isValidTime(endTime)) {
-    return null
-  }
-  
-  // Calculate hours
-  const startMinutes = timeToMinutes(startTime)
-  const endMinutes = timeToMinutes(endTime)
-  
-  // Handle overnight shifts (like 22:00-06:00)
-  let diffMinutes = endMinutes - startMinutes
-  if (diffMinutes < 0) {
-    diffMinutes += 24 * 60 // Add 24 hours for overnight shifts
-  }
-  
-  // Prevent unrealistic shifts (more than 16 hours)
-  if (diffMinutes > 16 * 60) {
-    return null
-  }
-  
-  const hours = diffMinutes / 60
-  
-  return { 
-    startTime, 
-    endTime, 
-    hours: Math.round(hours * 100) / 100 // Round to 2 decimal places
-  }
-}
-
-/**
- * Convert time string to minutes since midnight
- * Like a helper method in Java for time calculations
- */
-function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours * 60 + (minutes || 0)
-}
-
-/**
- * Validate time format (HH:MM)
- * Similar to input validation in Java
- */
-function isValidTime(time: string): boolean {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
-}
-
-/**
- * Format time interval for display
- * Like a toString() method in Java
- */
-export function formatTimeInterval(startTime: string, endTime: string): string {
-  if (!startTime || !endTime) return ''
-  
-  // Convert back to simple format if possible (remove :00)
-  const formatTime = (time: string) => {
-    return time.endsWith(':00') ? time.slice(0, -3) : time
-  }
-  
-  return `${formatTime(startTime)}-${formatTime(endTime)}`
-}
-
-/**
- * Get start and end of current month
- * Like Calendar.getInstance() in Java
- */
-export function getCurrentMonthRange(): { start: Date; end: Date } {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1)
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  
-  return { start, end }
-}
-
-/**
- * Check if a date is a weekend
- */
-export function isWeekend(date: Date): boolean {
-  const day = date.getDay()
-  return day === 0 || day === 6 // Sunday or Saturday
-}
-
-/**
- * Format date for display in grid headers
- */
-export function formatGridDate(date: Date): { day: string; number: string } {
   return {
-    day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-    number: date.getDate().toString()
+    id: '', // No ID for a new timesheet
+    storeId: '', // No store selected by default
+    zoneId: '',
+    startDate: period.startDate.toISOString(),
+    endDate: period.endDate.toISOString(),
+    entries: [],
+    createdAt: now, // ✅ FIX: Added required property
+    updatedAt: now, // ✅ FIX: Added required property
+    // createdBy can be omitted as it's optional
+  };
+}
+
+/**
+ * ✅ UPDATED: Format date for database storage (YYYY-MM-DD format)
+ */
+export function formatDateForDB(date: Date): string {
+  return format(date, 'yyyy-MM-dd')
+}
+
+/**
+ * ✅ UPDATED: Generate date range for timesheet grid
+ */
+export function generateDateRange(startDate: Date, endDate: Date): Date[] {
+  try {
+    return eachDayOfInterval({ start: startDate, end: endDate })
+  } catch (error) {
+    console.error('Error generating date range:', error)
+    return []
   }
 }
 
 /**
- * Validate timesheet period
+ * ✅ UPDATED: Get default period with proper European formatting
+ */
+export function getDefaultPeriod() {
+  const now = new Date()
+  const start = startOfMonth(now)
+  const end = endOfMonth(now)
+  
+  return {
+    startDate: start,
+    endDate: end,
+    // For display purposes (European format)
+    startDateDisplay: formatDateLocal(start),
+    endDateDisplay: formatDateLocal(end),
+    // For HTML inputs (ISO format)
+    startDateInput: format(start, 'yyyy-MM-dd'),
+    endDateInput: format(end, 'yyyy-MM-dd'),
+    // Month range display (1-30/31 format)
+    monthDisplay: `1-${end.getDate()} ${format(start, 'MMMM yyyy')}`
+  }
+}
+
+/**
+ * ✅ UPDATED: Validate timesheet period
  */
 export function validateTimesheetPeriod(startDate: Date, endDate: Date): string | null {
   if (startDate >= endDate) {
-    return 'End date must be after start date'
+    return 'Start date must be before end date'
   }
   
-  const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-  if (daysDiff > 31) {
-    return 'Timesheet period cannot exceed 31 days'
+  const diffTime = Math.abs(endDate.getTime() - startDate.getTime())
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  if (diffDays > 31) {
+    return 'Period cannot exceed 31 days'
+  }
+  
+  if (diffDays < 1) {
+    return 'Period must be at least 1 day'
   }
   
   return null
 }
 
 /**
- * Get default timesheet period (current month)
+ * Calculate total hours from timesheet entry days
  */
-export function getDefaultPeriod(): { startDate: Date; endDate: Date } {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
+export function calculateTotalHours(days: Record<string, any>): number {
+  return Object.values(days).reduce((total, day) => {
+    return total + (day?.hours || 0)
+  }, 0)
+}
+
+/**
+ * ✅ NEW: Get period display string for UI components
+ */
+export function getPeriodDisplayString(startDate: Date | string, endDate: Date | string): string {
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate
+  const end = typeof endDate === 'string' ? new Date(endDate) : endDate
   
-  return {
-    startDate: new Date(year, month, 1),
-    endDate: new Date(year, month + 1, 0)
+  return `${formatDateLocal(start)} - ${formatDateLocal(end)}`
+}
+
+/**
+ * ✅ NEW: Get month range display (1-30/31 format)
+ */
+export function getMonthRangeDisplay(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  const year = dateObj.getFullYear()
+  const month = dateObj.getMonth()
+  
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  
+  return `1-${lastDay.getDate()} ${format(firstDay, 'MMMM yyyy')}`
+}
+
+/**
+ * Check if date is weekend
+ */
+export function isWeekend(date: Date): boolean {
+  return isFnsWeekend(date)
+}
+
+/**
+ * Get next working day
+ */
+export function getNextWorkingDay(date: Date): Date {
+  let nextDay = addDays(date, 1)
+  while (isWeekend(nextDay)) {
+    nextDay = addDays(nextDay, 1)
   }
+  return nextDay
 }
 
 /**
- * Calculate working days in a period (excluding weekends)
+ * ✅ UPDATED: Parse time interval and return hours
  */
-export function calculateWorkingDays(startDate: Date, endDate: Date): number {
-  const dates = generateDateRange(startDate, endDate)
-  return dates.filter(date => !isWeekend(date)).length
+export function parseTimeInterval(interval: string): number {
+  if (!interval || !interval.trim()) return 0
+  
+  const regex = /^(\d{1,2}(?::\d{2})?)-(\d{1,2}(?::\d{2})?)$/
+  const match = interval.trim().match(regex)
+  
+  if (!match) return 0
+  
+  const [, start, end] = match
+  const startTime = start.includes(':') ? start : `${start}:00`
+  const endTime = end.includes(':') ? end : `${end}:00`
+  
+  const timeToMinutes = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number)
+    return hours * 60 + (minutes || 0)
+  }
+  
+  const startMinutes = timeToMinutes(startTime)
+  const endMinutes = timeToMinutes(endTime)
+  
+  let diffMinutes = endMinutes - startMinutes
+  if (diffMinutes < 0) diffMinutes += 24 * 60 // Handle overnight shifts
+  
+  return Math.round((diffMinutes / 60) * 100) / 100
 }
 
 /**
- * Calculate statistics for timesheet
- * Like a data analysis method in Java
+ * ✅ NEW: Format time for display in grid headers
  */
-export function calculateTimesheetStats(days: Record<string, DayData>): {
-  totalHours: number
-  workingDays: number
-  daysOff: number
-  averageHoursPerDay: number
-  statusCounts: Record<DayStatus, number>
+export function formatTimeForGrid(date: Date): {
+  dayName: string
+  dayNumber: string
+  isWeekend: boolean
+  fullDate: string
 } {
-  const dayValues = Object.values(days)
-  const totalHours = dayValues.reduce((sum, day) => sum + day.hours, 0)
-  const workingDays = dayValues.filter(day => day.hours > 0).length
-  const daysOff = dayValues.filter(day => day.status === 'off').length
-  
-  const statusCounts: Record<DayStatus, number> = {
-    'off': 0,
-    'CO': 0,
-    'CM': 0,
-    'dispensa': 0
-  }
-  
-  dayValues.forEach(day => {
-    statusCounts[day.status]++
-  })
-  
   return {
-    totalHours,
-    workingDays,
-    daysOff,
-    averageHoursPerDay: workingDays > 0 ? totalHours / workingDays : 0,
-    statusCounts
+    dayName: format(date, 'EEE'), // Mon, Tue, etc.
+    dayNumber: format(date, 'd'), // 1, 2, 3, etc.
+    isWeekend: isWeekend(date),
+    fullDate: formatDateLocal(date) // DD/MM/YYYY
   }
 }
 
 /**
- * Export timesheet data to CSV format
- * Like a data export utility in Java
+ * ✅ NEW: Get days count in period
  */
-export function exportToCSV(
-  timesheetData: any,
-  dateRange: Date[]
-): string {
-  const headers = [
-    'Employee Name',
-    'Position',
-    ...dateRange.map(date => date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
-    })),
-    'Total Hours'
-  ]
+export function getDaysCount(startDate: Date | string, endDate: Date | string): number {
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate
+  const end = typeof endDate === 'string' ? new Date(endDate) : endDate
   
-  const rows = timesheetData.entries.map((entry: any) => [
-    entry.employeeName,
-    entry.position,
-    ...dateRange.map(date => {
-      const dateKey = date.toISOString().split('T')[0]
-      const dayData = entry.days[dateKey]
-      if (!dayData) return '0'
-      
-      let cellValue = ''
-      if (dayData.timeInterval) {
-        cellValue = dayData.timeInterval
-      } else if (dayData.hours > 0) {
-        cellValue = `${dayData.hours}h`
-      }
-      
-      if (dayData.status !== 'off') {
-        cellValue += ` (${dayData.status})`
-      }
-      
-      return cellValue || '0'
-    }),
-    calculateTotalHours(entry.days).toString()
-  ])
-  
-  return [headers, ...rows]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-}
-
-/**
- * Validate time interval input
- * Like input validation in Java forms
- */
-export function validateTimeInterval(interval: string): {
-  isValid: boolean
-  error?: string
-  suggestion?: string
-} {
-  if (!interval.trim()) {
-    return { isValid: true } // Empty is valid (clears the cell)
-  }
-  
-  const parsed = parseTimeInterval(interval)
-  if (!parsed) {
-    return {
-      isValid: false,
-      error: 'Invalid time format',
-      suggestion: 'Use format like "10-12" or "9:30-17:30"'
-    }
-  }
-  
-  if (parsed.hours > 16) {
-    return {
-      isValid: false,
-      error: 'Shift too long',
-      suggestion: 'Maximum 16 hours per day'
-    }
-  }
-  
-  if (parsed.hours < 0.5) {
-    return {
-      isValid: false,
-      error: 'Shift too short',
-      suggestion: 'Minimum 30 minutes'
-    }
-  }
-  
-  return { isValid: true }
+  const diffTime = Math.abs(end.getTime() - start.getTime())
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
 }

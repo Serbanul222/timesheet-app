@@ -35,7 +35,7 @@ export function TimesheetGridFooter({
         {/* Summary Stats */}
         <div className="flex items-center space-x-6">
           <div className="text-sm text-gray-600">
-            <span className="font-medium">{employeeCount}</span> employees
+            <span className="font-medium">{employeeCount}</span> angajați
           </div>
           <div className="text-sm text-gray-600">
             Total: <span className="font-bold text-lg text-blue-700">{formatHours(totalHours)}</span>
@@ -49,14 +49,14 @@ export function TimesheetGridFooter({
                   <svg className="w-4 h-4 mr-1 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-blue-600">Setup required</span>
+                  <span className="text-blue-600">Setări necesare</span>
                 </>
               ) : (
                 <>
                   <svg className="w-4 h-4 mr-1 text-red-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-red-600">Cannot save: {validationSummary}</span>
+                  <span className="text-red-600">Nu se poate salva: {validationSummary}</span>
                 </>
               )}
             </div>
@@ -71,7 +71,7 @@ export function TimesheetGridFooter({
               onClick={onCancel}
               disabled={isSaving}
             >
-              Cancel
+              Înapoi la pagina anterioară
             </Button>
             
             <Button
@@ -82,10 +82,10 @@ export function TimesheetGridFooter({
               title={
                 hasSetupErrors ? 'Complete setup to enable saving' :
                 hasValidationErrors ? 'Fix validation errors to save' : 
-                'Save timesheet'
+                'Salvează pontaj'
               }
             >
-              {isSaving ? 'Saving...' : 'Save Timesheet'}
+              {isSaving ? 'Salvăm...' : 'Salvează pontaj'}
             </Button>
           </div>
         )}
@@ -97,7 +97,7 @@ export function TimesheetGridFooter({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-            <span className="text-sm">Read Only</span>
+            <span className="text-sm">Doar citire</span>
           </div>
         )}
       </div>
@@ -107,20 +107,20 @@ export function TimesheetGridFooter({
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h4 className="text-sm font-medium text-gray-800 mb-2">⏰ Time Entry</h4>
+              <h4 className="text-sm font-medium text-gray-800 mb-2">⏰ Înregistrare Timp</h4>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>• <strong>Double-click</strong> any cell to enter time intervals</p>
-                <p>• <strong>Examples:</strong> "10-12" (2h), "9:30-17:30" (8h), "22-06" (8h overnight)</p>
-                <p>• <strong>Auto-calculation:</strong> Hours appear in blue automatically</p>
+                <p>• <strong>Dublu-click</strong> pe orice celulă pentru a seta un interval de timp</p>
+                <p>• <strong>Exemple:</strong> "10-12" (2h), "9:30-17:30" (8h), "22-06" (8h peste noapte)</p>
+                <p>• <strong>Auto-calculare:</strong> Orele apar în albastru automat</p>
               </div>
             </div>
             
             <div>
-              <h4 className="text-sm font-medium text-gray-800 mb-2">📝 Status & Comments</h4>
+              <h4 className="text-sm font-medium text-gray-800 mb-2">📝 Status & Comentarii</h4>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>• <strong>Status:</strong> Select from dropdown - some absences allow partial hours</p>
-                <p>• <strong>Comments:</strong> Right-click cells to add notes • Orange dots indicate comments</p>
-                <p>• <strong>Validation:</strong> Working hours and full-day absences cannot be combined</p>
+                <p>• <strong>Status:</strong> Selectați din dropdown - unele absențe permit ore parțiale</p>
+                <p>• <strong>Comentarii:</strong> Click dreapta pe celule pentru a adăuga note • Punctele portocalii indică comentarii</p>
+                <p>• <strong>Validare:</strong> Orele lucrătoare și absențele de o zi întreagă nu pot fi combinate</p>
               </div>
             </div>
           </div>
@@ -131,13 +131,13 @@ export function TimesheetGridFooter({
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div className="flex-1">
-                <h5 className="text-sm font-medium text-blue-800">💡 Validation Rules</h5>
+                <h5 className="text-sm font-medium text-blue-800">💡 Reguli de Validare</h5>
                 <div className="text-xs text-blue-700 mt-1 space-y-1">
-                  <p>• Working hours and full-day absences (OFF, CO, Dispensation) cannot be combined</p>
-                  <p>• Some absences like Medical Leave (CM) can have partial hours</p>
-                  <p>• Red borders indicate validation errors that must be fixed before saving</p>
-                  <p>• Yellow borders indicate warnings that allow saving but should be reviewed</p>
-                  <p>• Store selection is required before employees can be selected</p>
+                  <p>• Orele lucrătoare și absențele de o zi întreagă (OFF, CO, Dispensație) nu pot fi combinate</p>
+                  <p>• Unele absențe, cum ar fi Concediul Medical (CM), pot avea ore parțiale</p>
+                  <p>• Contururile roșii indică erori de validare care trebuie corectate înainte de salvare</p>
+                  <p>• Contururile galbene indică avertismente care permit salvarea, dar ar trebui revizuite</p>
+                  <p>• Selectarea magazinului este necesară înainte ca angajații să poată fi selectați</p>
                 </div>
               </div>
             </div>

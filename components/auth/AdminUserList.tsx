@@ -9,6 +9,10 @@ import { ProfileCreationForm } from '@/components/admin/ProfileCreationForm'
 import { ProfileBulkImport } from '@/components/admin/ProfileBulkImport'
 import { ImportResultModal } from '@/components/admin/ImportResultModal'
 import { toast } from 'sonner'
+// ✅ FIXED: Add the missing formatDate import
+import { formatDate } from '@/lib/utils'
+// ✅ ALTERNATIVE: If the above doesn't work, import from your date utilities
+// import { formatDateEuropean as formatDate } from '@/lib/utils/dateFormatting'
 
 // This interface should already be correct based on the backend
 interface UserWithAuth {
@@ -419,17 +423,19 @@ export function AdminUserList() {
                             {user.store && (
                               <span>Magazin: {user.store.name}</span>
                             )}
+                           
                             {user.auth_status?.last_sign_in_at ? (
-                              <span>Ultima conectare: {new Date(user.auth_status.last_sign_in_at).toLocaleDateString()}</span>
+                              <span>Ultima conectare: {formatDate(user.auth_status.last_sign_in_at)}</span>
                             ) : (
                               <span>Niciodată conectat</span>
                             )}
+
+                            {user.auth_status?.account_created_at && (
+                              <p className="text-xs text-gray-400">
+                                Cont creat: {formatDate(user.auth_status.account_created_at)}
+                              </p>
+                            )}
                           </div>
-                          {user.auth_status?.account_created_at && (
-                            <p className="text-xs text-gray-400">
-                              Cont creat: {new Date(user.auth_status.account_created_at).toLocaleDateString()}
-                            </p>
-                          )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">

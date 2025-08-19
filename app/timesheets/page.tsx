@@ -1,352 +1,182 @@
-// app/timesheets/page.tsx - FIXED: Add Suspense boundary for useSearchParams
+// FILE: app/timesheets/page.tsx - REWRITTEN
 'use client'
 
-import { useState, useCallback, useEffect, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
-import { MainLayout } from '@/components/layout/MainLayout'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { TimesheetDashboard } from '@/components/timesheets/TimesheetDashboard'
 import { TimesheetGrid } from '@/components/timesheets/TimesheetGrid'
 import { TimesheetControls } from '@/components/timesheets/TimesheetControls'
-import { TimesheetListView, TimesheetGridRecord } from '@/components/timesheets/TimesheetListView'
-import { usePermissions } from '@/hooks/auth/usePermissions'
+import { TimesheetListView } from '@/components/timesheets/TimesheetListView'
+import { TimesheetDataLoader } from '@/lib/timesheet-data-loader'
+import { MainLayout } from '@/components/layout/MainLayout'
 import { type TimesheetGridData } from '@/types/timesheet-grid'
-import { getDefaultPeriod, generateDateRange } from '@/lib/timesheet-utils'
+import { generateDefaultTimesheetData } from '@/lib/timesheet-utils'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/Button'
 
-interface TimesheetWithDetails {
+type ViewMode = 'list' | 'grid' | 'dashboard'
+
+export interface TimesheetGridRecord {
   id: string;
   store_id: string;
   zone_id: string;
   period_start: string;
   period_end: string;
   total_hours: number;
+  employee_count: number;
+  grid_title: string;
   created_at: string;
   updated_at: string;
-  daily_entries?: any;
-  grid_title?: string;
-  store?: {
-    id: string;
-    name: string;
-  };
+  daily_entries: any;
+  store?: { name: string };
 }
 
-type ViewMode = 'list' | 'create' | 'edit';
+export default function TimesheetsPage() {
+  const searchParams = useSearchParams()
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [isLoading, setIsLoading] = useState(true)
+  const [editingTimesheetId, setEditingTimesheetId] = useState<string | null>(null)
 
-// ✅ NEW: Separate component that uses useSearchParams
-function TimesheetsContent() {
-  const permissions = usePermissions();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
-  const urlStoreId = searchParams.get('storeId');
-  const urlStoreName = searchParams.get('storeName');
-  const urlEmployeeId = searchParams.get('employeeId');
-  const urlEmployeeName = searchParams.get('employeeName');
-
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    (urlStoreId || urlEmployeeId) ? 'list' : 'create'
-  );
-  const [editingTimesheet, setEditingTimesheet] = useState<TimesheetWithDetails | null>(null);
-
-  const defaultPeriod = getDefaultPeriod();
-  const [timesheetData, setTimesheetData] = useState<TimesheetGridData>({
-    id: crypto.randomUUID(),
-    startDate: defaultPeriod.startDate.toISOString(),
-    endDate: defaultPeriod.endDate.toISOString(),
-    entries: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    storeId: urlStoreId || undefined,
-  });
-
-  const [isSaving, setIsSaving] = useState(false);
-
-// Add this logic to your TimesheetsContent component in app/timesheets/page.tsx
-
-useEffect(() => {
-  // Check the URL hash for a 'type=recovery' parameter.
-  const params = new URLSearchParams(window.location.hash.slice(1));
-  const type = params.get('type');
+  // State for the "working copy" of the data that the UI modifies
+  const [gridData, setGridData] = useState<TimesheetGridData | null>(null)
   
-  if (type === 'recovery') {
-    console.log("Detected recovery link, redirecting to password setup page.");
-    // Clear the URL hash to avoid issues on subsequent loads
-    window.history.pushState("", document.title, window.location.pathname + window.location.search);
-    // Programmatically redirect to the correct page
-    router.push('/auth/set-password');
-    toast.info('Please set your new password.');
-  }
+  // ✅ THE FIX: State for the "long-term memory" - a pristine copy of the originally loaded data
+  const [originalData, setOriginalData] = useState<TimesheetGridData | null>(null)
 
-  // Original effect logic continues below...
-  if (urlStoreId && urlStoreName) {
-    toast.info(`Viewing timesheets for: ${urlStoreName}`, {
-      description: 'Click on any timesheet to edit, or create a new one.',
-      duration: 5000,
-    });
-  } else if (urlEmployeeId && urlEmployeeName) {
-    toast.info(`Viewing timesheets for: ${urlEmployeeName}`, {
-      description: 'Click on any timesheet to edit, or create a new one.',
-      duration: 5000,
-    });
-  }
-  if (urlStoreId || urlEmployeeId) {
-    router.replace('/timesheets', { scroll: false });
-  }
-}, [urlStoreId, urlStoreName, urlEmployeeId, urlEmployeeName, router]);
+  // --- DATA LOADING & INITIALIZATION ---
 
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
+  const loadTimesheetForEditing = useCallback(async (timesheetId: string) => {
+    setIsLoading(true)
     try {
-      console.log('Saving timesheet:', timesheetData);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (editingTimesheet) {
-        toast.success('Timesheet updated successfully');
-      } else {
-        toast.success('Timesheet created successfully');
+      const loadedGridData = await TimesheetDataLoader.loadTimesheetForEdit({ timesheetId, includeHistoricalEmployees: true });
+      if (!loadedGridData) {
+        toast.error('Timesheet not found');
+        setViewMode('list');
+        return;
       }
-      setViewMode('list');
-      setEditingTimesheet(null);
+
+      // Perform validation on loaded data
+      const validation = TimesheetDataLoader.validateGridData(loadedGridData);
+      if (!validation.isValid) {
+        toast.error('Failed to load timesheet data', { description: validation.errors.join(', ') });
+        setViewMode('list');
+        return;
+      }
+      if (validation.warnings.length > 0) {
+        toast.warning('Data loaded with warnings', { description: validation.warnings.join(', ') });
+      }
+
+      // ✅ THE FIX: Set BOTH the working copy and the pristine original copy
+      setGridData(loadedGridData);
+      setOriginalData(loadedGridData); // This is the component's "long-term memory"
+
+      setViewMode('grid');
+      toast.success('Timesheet loaded for editing');
     } catch (error) {
-      console.error('Failed to save timesheet:', error);
-      toast.error('Failed to save timesheet');
-      throw error;
+      console.error('Failed to load timesheet for editing:', error);
+      toast.error('Failed to load timesheet', { description: error instanceof Error ? error.message : 'Unknown error' });
+      setViewMode('list');
     } finally {
-      setIsSaving(false);
+      setIsLoading(false);
     }
-  }, [timesheetData, editingTimesheet]);
-
-  const handleTimesheetUpdate = useCallback((newData: Partial<TimesheetGridData>) => {
-    setTimesheetData(prev => {
-      if (!prev) return newData as TimesheetGridData;
-
-      if (newData.entries) {
-        const prevEntriesMap = new Map(prev.entries.map(e => [e.employeeId, e]));
-        const finalEntries = newData.entries.map(newEntry => {
-          return prevEntriesMap.get(newEntry.employeeId) || newEntry;
-        });
-        return { ...prev, ...newData, entries: finalEntries, updatedAt: new Date().toISOString() };
-      }
-      return { ...prev, ...newData, updatedAt: new Date().toISOString() };
-    });
   }, []);
 
-  const handleGridDataChange = useCallback((newData: TimesheetGridData) => {
-    setTimesheetData(newData);
-  }, []);
-
-  const handleEditTimesheet = useCallback((timesheet: TimesheetGridRecord) => {
-    if (!timesheet.daily_entries || typeof timesheet.daily_entries !== 'object') {
-      toast.error("Failed to load timesheet data. The record appears to be corrupt.");
-      return;
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (editId && editId !== editingTimesheetId) {
+      setEditingTimesheetId(editId);
+      loadTimesheetForEditing(editId);
+    } else {
+      setIsLoading(false);
     }
+  }, [searchParams, editingTimesheetId, loadTimesheetForEditing]);
 
-    const entries = parseTimesheetEntries(timesheet);
+  // --- EVENT HANDLERS ---
 
-    const gridData: TimesheetGridData = {
-      id: timesheet.id, 
-      storeId: timesheet.store_id, 
-      zoneId: timesheet.zone_id,
-      startDate: timesheet.period_start, 
-      endDate: timesheet.period_end,
-      entries, 
-      createdAt: timesheet.created_at, 
-      updatedAt: timesheet.updated_at,
-    };
+  const handleCreateNew = () => {
+    const defaultData = generateDefaultTimesheetData();
+    setEditingTimesheetId(null);
+    setGridData(defaultData);
+    setOriginalData(defaultData); // Also initialize the "memory" for a new sheet
+    setViewMode('grid');
+  };
 
-    setTimesheetData(gridData);
-    setEditingTimesheet(timesheet as TimesheetWithDetails);
-    setViewMode('edit');
-    toast.info(`Now editing: ${timesheet.grid_title || 'Timesheet'}`);
-  }, []);
+  const handleEditTimesheet = async (timesheet: TimesheetGridRecord) => {
+    setEditingTimesheetId(timesheet.id);
+    await loadTimesheetForEditing(timesheet.id);
+  };
 
-  const handleCreateNew = useCallback(() => {
-    const defaultPeriod = getDefaultPeriod();
-    setTimesheetData({
-      id: crypto.randomUUID(),
-      startDate: defaultPeriod.startDate.toISOString(),
-      endDate: defaultPeriod.endDate.toISOString(),
-      entries: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      storeId: urlStoreId || undefined,
+  const handleGridDataChange = (updates: Partial<TimesheetGridData>) => {
+    setGridData(prevData => {
+      const baseData = prevData || generateDefaultTimesheetData();
+      return { ...baseData, ...updates };
     });
-    setEditingTimesheet(null);
-    setViewMode('create');
-  }, [urlStoreId]);
+  };
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = () => {
     setViewMode('list');
-    setEditingTimesheet(null);
-  }, []);
+    setGridData(null);
+    setOriginalData(null); // Clear the memory when cancelling
+    setEditingTimesheetId(null);
+  };
 
-  if (!permissions.canViewTimesheets) {
-    return (
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 text-center">
-        <h2 className="text-xl font-semibold text-red-700">Access Denied</h2>
-        <p className="text-gray-600 mt-2">You do not have permission to view this page.</p>
-      </div>
-    );
+  const handleSaveSuccess = () => {
+    toast.success('Timesheet saved successfully!');
+    setViewMode('list');
+    setGridData(null);
+    setOriginalData(null); // Clear the memory after saving
+    setEditingTimesheetId(null);
+  };
+
+  // --- RENDER LOGIC ---
+
+  if (isLoading) {
+    return <MainLayout><div className="text-center py-20">Loading...</div></MainLayout>;
   }
 
   return (
-    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-      <div className="px-4 py-6 sm:px-0 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {viewMode === 'list' ? 'Pontaj' : 
-               viewMode === 'edit' ? 'Editare pontaj' : 'Crează pontaj'}
-            </h1>
-            <p className="text-gray-600">
-              {viewMode === 'list' ? 'Vizualizează și gestionează înregistrările de pontaj' :
-               viewMode === 'edit' ? 'Editează datele existente de pontaj' : 'Creează noi înregistrări de pontaj'}
-            </p>
+    <MainLayout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mb-4 p-3 bg-gray-100 rounded text-xs break-all">
+            <strong>Debug:</strong> Mode: {viewMode} | Editing: {editingTimesheetId || 'none'} | StoreID: {gridData?.storeId || 'none'} | Entries: {gridData?.entries.length || 0}
           </div>
-          {viewMode !== 'list' && (
-            <Button variant="outline" onClick={handleCancel}>Anulează</Button>
-          )}
-        </div>
+        )}
 
         {viewMode === 'list' && (
-          <TimesheetListView
+          <TimesheetListView 
             onEditTimesheet={handleEditTimesheet}
             onCreateNew={handleCreateNew}
           />
         )}
 
-        {(viewMode === 'create' || viewMode === 'edit') && (
-          <>
+        {viewMode === 'grid' && (
+          <div className="space-y-6">
             <TimesheetControls
-              timesheetData={timesheetData}
-              onUpdate={handleTimesheetUpdate}
-              isSaving={isSaving}
-              existingTimesheetId={editingTimesheet?.id}
+              timesheetData={gridData || generateDefaultTimesheetData()}
+              onUpdate={handleGridDataChange}
+              isSaving={false}
+              existingTimesheetId={editingTimesheetId || undefined}
+              // ✅ THE FIX: Pass the "long-term memory" down to the controls
+              originalData={originalData}
             />
-            <TimesheetGrid
-              data={timesheetData}
-              onDataChange={handleGridDataChange}
-              onSave={handleSave}
-              onCancel={handleCancel}
-              readOnly={!permissions.canEditTimesheets}
-            />
-          </>
+            
+            {gridData && gridData.storeId ? (
+              <TimesheetGrid
+                data={gridData}
+                onDataChange={handleGridDataChange}
+                onCancel={handleCancel}
+                onSaveSuccess={handleSaveSuccess}
+                readOnly={false}
+              />
+            ) : (
+              <div className="text-center py-10 bg-gray-50 rounded-lg">
+                <h3 className="text-lg font-medium text-gray-900">Configurări necesare</h3>
+                <p className="text-sm text-gray-600 mt-1">Vă rugăm să selectați un magazin pentru a continua.</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ✅ NEW: Loading component for Suspense fallback
-function TimesheetsLoading() {
-  return (
-    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-      <div className="px-4 py-6 sm:px-0">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-32 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ✅ MAIN: Main page component with Suspense boundary
-export default function TimesheetsPage() {
-  return (
-    <MainLayout>
-      <Suspense fallback={<TimesheetsLoading />}>
-        <TimesheetsContent />
-      </Suspense>
     </MainLayout>
   );
-}
-
-// ✅ FIXED: Enhanced timesheet entry parsing that PRESERVES time intervals
-function parseTimesheetEntries(timesheet: TimesheetGridRecord): any[] {
-  const dailyEntries = timesheet.daily_entries;
-  if (!dailyEntries || typeof dailyEntries !== 'object') {
-    return [];
-  }
-
-  try {
-    const dateRange = generateDateRange(
-      new Date(timesheet.period_start), 
-      new Date(timesheet.period_end)
-    );
-
-    // Handle new format: { _employees: {...}, [date]: {...} }
-    if (dailyEntries._employees) {
-      console.log('📋 Parsing new format timesheet with _employees metadata');
-      
-      return Object.entries(dailyEntries._employees).map(([employeeId, employeeData]: [string, any]) => {
-        const days: { [date: string]: any } = {};
-        
-        dateRange.forEach(date => {
-          const dateKey = date.toISOString().split('T')[0];
-          const dayEntry = dailyEntries[dateKey]?.[employeeId];
-          
-          days[dateKey] = {
-            timeInterval: dayEntry?.timeInterval || '',
-            startTime: dayEntry?.startTime || '',
-            endTime: dayEntry?.endTime || '',
-            hours: dayEntry?.hours || 0,
-            status: dayEntry?.status || 'alege',
-            notes: dayEntry?.notes || '',
-          };
-        });
-
-        return {
-          employeeId,
-          employeeName: employeeData.name,
-          position: employeeData.position || 'Staff',
-          days,
-        };
-      });
-    }
-    
-    // Handle alternative format: { [employeeId]: { name, days: {...} } }
-    else {
-      console.log('📋 Parsing alternative format timesheet');
-      
-      return Object.entries(dailyEntries)
-        .filter(([key, value]) => 
-          !key.startsWith('_') && 
-          typeof value === 'object' && 
-          value.name
-        )
-        .map(([employeeId, employeeData]: [string, any]) => {
-          const days: { [date: string]: any } = {};
-          
-          dateRange.forEach(date => {
-            const dateKey = date.toISOString().split('T')[0];
-            const dayEntry = employeeData.days?.[dateKey];
-            
-            days[dateKey] = {
-              timeInterval: dayEntry?.timeInterval || '',
-              startTime: dayEntry?.startTime || '',
-              endTime: dayEntry?.endTime || '',
-              hours: dayEntry?.hours || 0,
-              status: dayEntry?.status || 'alege',
-              notes: dayEntry?.notes || '',
-            };
-          });
-
-          return {
-            employeeId,
-            employeeName: employeeData.name,
-            position: employeeData.position || 'Staff',
-            days,
-          };
-        });
-    }
-  } catch (error) {
-    console.error('❌ Error parsing timesheet entries:', error);
-    toast.error('Failed to parse timesheet data. The format may be incompatible.');
-    return [];
-  }
 }

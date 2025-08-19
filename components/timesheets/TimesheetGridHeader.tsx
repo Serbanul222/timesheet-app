@@ -1,6 +1,8 @@
+// components/timesheets/TimesheetGridHeader.tsx - Updated with European dates
 'use client'
 
-import { formatDate, formatHours } from '@/lib/utils'
+import { formatTimeForGrid } from '@/lib/timesheet-utils'
+import { formatHours } from '@/lib/utils'
 
 interface TimesheetGridHeaderProps {
   dateRange: Date[]
@@ -18,38 +20,38 @@ export function TimesheetGridHeader({
         {/* Employee Info Columns */}
         <div className="flex flex-shrink-0">
           <div className="w-40 px-2 py-2 border-r border-gray-300 font-medium text-xs text-gray-700 flex items-center justify-center">
-            Employee Name
+            Nume Angajat
           </div>
           <div className="w-24 px-2 py-2 border-r border-gray-300 font-medium text-xs text-gray-700 flex items-center justify-center">
-            Position
+            Poziție
           </div>
         </div>
 
         {/* Date Columns */}
         <div className="flex">
           {dateRange.map((date) => {
-            const dateKey = date.toISOString().split('T')[0]
-            const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' })
-            const dayNumber = date.getDate()
-            const isWeekend = date.getDay() === 0 || date.getDay() === 6
+            // ✅ UPDATED: Use European date format (DD/MM/YYYY)
+            const dateKey = date.toISOString().split('T')[0] // Still use ISO for keys
+            const timeInfo = formatTimeForGrid(date)
             const total = dailyTotals[dateKey] || 0
             
             return (
               <div
                 key={dateKey}
                 className={`w-12 border-r border-gray-300 text-center flex-shrink-0 ${
-                  isWeekend ? 'bg-gray-100' : ''
+                  timeInfo.isWeekend ? 'bg-gray-100' : ''
                 }`}
+                title={`${timeInfo.fullDate} - ${timeInfo.dayName}`} // European format in tooltip
               >
                 {/* Date Header */}
                 <div className="h-8 flex flex-col justify-center border-b border-gray-200">
                   <div className="text-xs font-medium text-gray-600">
-                    {dayOfWeek}
+                    {timeInfo.dayName}
                   </div>
                   <div className={`text-xs font-bold ${
-                    isWeekend ? 'text-red-600' : 'text-gray-900'
+                    timeInfo.isWeekend ? 'text-red-600' : 'text-gray-900'
                   }`}>
-                    {dayNumber}
+                    {timeInfo.dayNumber}
                   </div>
                 </div>
                 

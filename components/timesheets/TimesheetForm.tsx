@@ -63,9 +63,9 @@ export function TimesheetForm({ month, employeeId, existingTimesheet, onSuccess,
   if (!employee) {
     return (
       <div className="p-8 text-center">
-        <h2 className="text-xl font-semibold text-red-600">Error</h2>
-        <p className="text-gray-700 mt-2">Could not find the selected employee. Please close this and try again.</p>
-        <Button variant="outline" className="mt-4" onClick={onCancel}>Close</Button>
+        <h2 className="text-xl font-semibold text-red-600">Eroare</h2>
+        <p className="text-gray-700 mt-2">Nu am putut găsi angajatul selectat. Te rugăm să închizi aceasta și să încerci din nou.</p>
+        <Button variant="outline" className="mt-4" onClick={onCancel}>Închide</Button>
       </div>
     );
   }
@@ -75,7 +75,7 @@ export function TimesheetForm({ month, employeeId, existingTimesheet, onSuccess,
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">{employee.full_name}</h2>
-          <p className="text-gray-600">Editing timesheet for <span className="font-semibold">{format(month, 'MMMM yyyy')}</span></p>
+          <p className="text-gray-600">Editează pontajul pentru <span className="font-semibold">{format(month, 'MMMM yyyy')}</span></p>
         </div>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -119,9 +119,9 @@ export function TimesheetForm({ month, employeeId, existingTimesheet, onSuccess,
         </div>
         
         <div className="flex items-center justify-end space-x-3 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={onCancel}>Anulează</Button>
           <Button type="submit" loading={isUpserting}>
-            Save Timesheet
+            Salvează Pontaj
           </Button>
         </div>
       </form>
