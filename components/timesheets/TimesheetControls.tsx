@@ -13,6 +13,7 @@ import { EmployeeSelectionPanel } from './EmployeeSelectionPanel'
 import { EmployeeDelegationPanel } from './EmployeeDelegationPanel'
 import { DelegationInfoPanel } from './DelegationInfoPanel'
 //import { TimesheetSummaryPanel } from './TimesheetSummaryPanel'
+import { Button } from '@/components/ui/Button'
 
 interface TimesheetControlsProps {
   timesheetData: TimesheetGridData;
@@ -20,6 +21,7 @@ interface TimesheetControlsProps {
   isSaving: boolean;
   existingTimesheetId?: string;
   originalData: TimesheetGridData | null;
+  onCancel: () => void;
 }
 
 export function TimesheetControls({
@@ -28,6 +30,7 @@ export function TimesheetControls({
   isSaving,
   existingTimesheetId,
   originalData,
+  onCancel,
 }: TimesheetControlsProps) {
   const { profile } = useAuth()
   const { stores, loadingStores } = useStores()
@@ -38,7 +41,7 @@ export function TimesheetControls({
     delegatedEmployees,
     historicalEmployees,
     isLoading: loadingEmployees,
-    refetch: refetchEmployees, // ✅ Get the 'refetch' function from the hook
+    refetch: refetchEmployees,
     hasStoreSelected,
   } = useEmployees({
     storeId: timesheetData.storeId,
@@ -65,12 +68,13 @@ export function TimesheetControls({
     }
   }, [profile, stores, timesheetData.storeId, onUpdate]);
 
+  const handleDelegationChange = () => {
+    refetchEmployees();
+  };
+  
   const handleEmployeeSelection = (newlySelectedIds: string[]) => {
     const selectedEmployeeObjects = allAvailableEmployees.filter((emp) => newlySelectedIds.includes(emp.id));
-    if (selectedEmployeeObjects.length === 0) {
-      onUpdate({ entries: [] });
-      return;
-    }
+    if (selectedEmployeeObjects.length === 0) { onUpdate({ entries: [] }); return; }
     const dateRange = generateDateRange(new Date(timesheetData.startDate), new Date(timesheetData.endDate));
     const savedDataMap = new Map(originalData?.entries?.map(entry => [entry.employeeId, entry.days]) || []);
     const newEntries = selectedEmployeeObjects.map((emp) => {
@@ -85,31 +89,41 @@ export function TimesheetControls({
     onUpdate({ entries: newEntries });
   };
 
+  /**
+   * ✅ THE FIX: This is the complete, correct version of the function,
+   * with the placeholder comment replaced by the actual object properties.
+   */
   const handleEmployeeAdded = (newEmployee: any) => {
     const dateRange = generateDateRange(new Date(timesheetData.startDate), new Date(timesheetData.endDate));
+    
+    // This newEntry object now correctly matches the TimesheetEntry type
     const newEntry = {
-      employeeId: newEmployee.id, employeeName: newEmployee.full_name, position: newEmployee.position || 'Staff',
+      employeeId: newEmployee.id,
+      employeeName: newEmployee.full_name,
+      position: newEmployee.position || 'Staff',
       days: dateRange.reduce((acc, date) => {
         const dateKey = formatDateLocal(date);
         acc[dateKey] = { timeInterval: '', startTime: '', endTime: '', hours: 0, status: 'alege' as DayStatus, notes: '' };
         return acc;
       }, {} as Record<string, any>),
     };
-    onUpdate({ entries: [...timesheetData.entries, newEntry] });
-    refetchEmployees();
-  };
 
-  /**
-   * ✅ This new handler calls the 'refetch' function. It will be passed down
-   * to children components so they can signal that a data refresh is needed.
-   */
-  const handleDelegationChange = () => {
-    console.log('Delegation change detected. Refetching employee list...');
+    onUpdate({ entries: [...timesheetData.entries, newEntry] });
     refetchEmployees();
   };
   
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+      <div className="flex justify-between items-center border-b border-gray-200 pb-4">
+        <h3 className="text-lg font-medium text-gray-900">
+          {existingTimesheetId ? 'Editare Pontaj' : 'Creare Pontaj Nou'}
+        </h3>
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          Înapoi la Listă
+        </Button>
+      </div>
+
       <PeriodAndStoreSelector
         timesheetData={timesheetData}
         stores={stores}
@@ -118,6 +132,7 @@ export function TimesheetControls({
         isLoadingStores={loadingStores}
         isStoreManager={profile?.role === 'STORE_MANAGER' && stores.length === 1}
       />
+      
       <EmployeeSelectionPanel
         storeId={timesheetData.storeId}
         selectedEmployeeIds={selectedEmployeeIds}
@@ -133,7 +148,6 @@ export function TimesheetControls({
         onEmployeeAdded={handleEmployeeAdded}
       />
       
-      {/* ✅ Pass the new handler down to the delegation panel */}
       <EmployeeDelegationPanel
         employees={employees}
         selectedEmployeeIds={selectedEmployeeIds}
@@ -156,8 +170,8 @@ export function TimesheetControls({
           onClearAll={() => handleEmployeeSelection([])}
           isLoadingEmployees={loadingEmployees}
         />
-      )}
-       */}
+      )} */}
+      
       <DelegationInfoPanel delegatedEmployees={delegatedEmployees} />
     </div>
   );

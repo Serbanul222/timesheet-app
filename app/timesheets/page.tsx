@@ -1,7 +1,7 @@
 // FILE: app/timesheets/page.tsx - REWRITTEN
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react' // ✅ Import Suspense
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TimesheetDashboard } from '@/components/timesheets/TimesheetDashboard'
 import { TimesheetGrid } from '@/components/timesheets/TimesheetGrid'
@@ -31,9 +31,8 @@ export interface TimesheetGridRecord {
 }
 
 /**
- * ✅ THE FIX: All of your original page logic is moved into this new inner component.
- * This component is where useSearchParams is called, so it's the part that needs
- * to be wrapped in a Suspense boundary.
+ * This inner component contains all the page logic and is wrapped in a Suspense
+ * boundary because it uses the useSearchParams() hook.
  */
 function TimesheetsPageContent() {
   const searchParams = useSearchParams()
@@ -101,12 +100,18 @@ function TimesheetsPageContent() {
   };
 
   const handleCancel = () => {
-    setViewMode('list'); setGridData(null); setOriginalData(null); setEditingTimesheetId(null);
+    setViewMode('list'); 
+    setGridData(null); 
+    setOriginalData(null); 
+    setEditingTimesheetId(null);
   };
 
   const handleSaveSuccess = () => {
     toast.success('Timesheet saved successfully!');
-    setViewMode('list'); setGridData(null); setOriginalData(null); setEditingTimesheetId(null);
+    setViewMode('list'); 
+    setGridData(null); 
+    setOriginalData(null); 
+    setEditingTimesheetId(null);
   };
 
   if (isLoading) {
@@ -129,6 +134,9 @@ function TimesheetsPageContent() {
             isSaving={false}
             existingTimesheetId={editingTimesheetId || undefined}
             originalData={originalData}
+            // ✅ THE FIX: This line connects the "Back to List" button
+            // in the controls to the correct handler on this page.
+            onCancel={handleCancel}
           />
           {gridData && gridData.storeId ? (
             <TimesheetGrid
@@ -151,13 +159,13 @@ function TimesheetsPageContent() {
 }
 
 /**
- * This is the main page export. It remains a client component,
- * but it wraps the dynamic content in a Suspense boundary.
+ * This is the main page export. It wraps the dynamic content in a Suspense
+ * boundary to prevent build errors related to useSearchParams.
  */
 export default function TimesheetsPage() {
   return (
     <MainLayout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm-px-6 lg-px-8 py-8">
         <Suspense fallback={<div className="text-center py-20">Loading Page...</div>}>
           <TimesheetsPageContent />
         </Suspense>
