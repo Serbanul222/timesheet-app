@@ -1,6 +1,18 @@
-// lib/timesheet-utils.ts - Updated with European date formatting
+// lib/timesheet-utils.ts - Updated with European date formatting and Romanian day names
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isWeekend as isFnsWeekend } from 'date-fns'
 import { type TimesheetGridData } from '@/types/timesheet-grid'
+
+// Romanian day names mapping
+const ROMANIAN_DAYS = {
+  0: 'Dum',    // Duminică (Sunday)
+  1: 'Lun',    // Luni (Monday)
+  2: 'Mar',    // Marți (Tuesday)
+  3: 'Mie',    // Miercuri (Wednesday)
+  4: 'Joi',    // Joi (Thursday)
+  5: 'Vin',    // Vineri (Friday)
+  6: 'Sâm'     // Sâmbătă (Saturday)
+} as const
+
 /**
  * ✅ UPDATED: Format date for local display (DD/MM/YYYY format)
  */
@@ -171,7 +183,7 @@ export function parseTimeInterval(interval: string): number {
 }
 
 /**
- * ✅ NEW: Format time for display in grid headers
+ * ✅ UPDATED: Format time for display in grid headers with Romanian day names
  */
 export function formatTimeForGrid(date: Date): {
   dayName: string
@@ -179,8 +191,10 @@ export function formatTimeForGrid(date: Date): {
   isWeekend: boolean
   fullDate: string
 } {
+  const dayOfWeek = date.getDay()
+  
   return {
-    dayName: format(date, 'EEE'), // Mon, Tue, etc.
+    dayName: ROMANIAN_DAYS[dayOfWeek as keyof typeof ROMANIAN_DAYS],
     dayNumber: format(date, 'd'), // 1, 2, 3, etc.
     isWeekend: isWeekend(date),
     fullDate: formatDateLocal(date) // DD/MM/YYYY
@@ -196,4 +210,39 @@ export function getDaysCount(startDate: Date | string, endDate: Date | string): 
   
   const diffTime = Math.abs(end.getTime() - start.getTime())
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+}
+
+/**
+ * ✅ NEW: Get Romanian day name for a given date
+ */
+export function getRomanianDayName(date: Date, abbreviated: boolean = true): string {
+  const dayOfWeek = date.getDay()
+  
+  if (abbreviated) {
+    return ROMANIAN_DAYS[dayOfWeek as keyof typeof ROMANIAN_DAYS]
+  }
+  
+  // Full Romanian day names
+  const fullDayNames = {
+    0: 'Duminică',
+    1: 'Luni',
+    2: 'Marți',
+    3: 'Miercuri',
+    4: 'Joi',
+    5: 'Vineri',
+    6: 'Sâmbătă'
+  } as const
+  
+  return fullDayNames[dayOfWeek as keyof typeof fullDayNames]
+}
+
+/**
+ * ✅ NEW: Helper function to get all Romanian day names
+ */
+export function getAllRomanianDays(abbreviated: boolean = true) {
+  if (abbreviated) {
+    return Object.values(ROMANIAN_DAYS)
+  }
+  
+  return ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
 }

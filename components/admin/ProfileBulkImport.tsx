@@ -31,22 +31,22 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
   const downloadTemplate = () => {
     const template = [
       {
-        email: 'example1@company.com',
-        full_name: 'John Doe',
+        email: 'popescu.ion@lensa.ro',
+        full_name: 'Ion Popescu',
         role: 'STORE_MANAGER',
         zone_name: 'North Zone',
         store_name: 'Store 001'
       },
       {
-        email: 'example2@company.com',
-        full_name: 'Jane Smith',
+        email: 'Ileana.Popescu@lensa.ro',
+        full_name: 'Ileana Popescu',
         role: 'ASM',
-        zone_name: 'South Zone',
+        zone_name: 'București 1',
         store_name: ''
       },
       {
-        email: 'example3@company.com',
-        full_name: 'Bob Johnson',
+        email: 'Georgescu.Mihai@lensa.ro',
+        full_name: 'Mihai Georgescu',
         role: 'HR',
         zone_name: '',
         store_name: ''
@@ -67,7 +67,7 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
     ]
 
     XLSX.writeFile(wb, 'profiles_template.xlsx')
-    toast.success('Template downloaded successfully')
+    toast.success('Template descărcat cu succes')
   }
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,7 +75,7 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
     if (!file) return
 
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      toast.error('Please select an Excel file (.xlsx or .xls)')
+      toast.error('Te rog să selectezi un fișier excel (.xlsx or .xls)')
       return
     }
 
@@ -93,7 +93,7 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
       toast.success(`File loaded: ${jsonData.length} rows found`)
     } catch (error) {
       console.error('Error reading file:', error)
-      toast.error('Error reading file. Please check the format.')
+      toast.error('Eroare citire fișier. Te rog să verifici formatul.')
       setSelectedFile(null)
     }
   }
@@ -271,7 +271,7 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
   return (
     <div className="bg-white rounded-lg border border-gray-300 p-6 mb-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900">Bulk Import Profiles</h3>
+        <h3 className="text-lg font-medium text-gray-900">Importare în masă a profilurilor</h3>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -282,21 +282,21 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
       <div className="space-y-6">
         {/* Template Download */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-blue-800 mb-2">Step 1: Download Template</h4>
+          <h4 className="text-sm font-medium text-blue-800 mb-2">Pasul 1: Descarcă șablon</h4>
           <p className="text-sm text-blue-700 mb-3">
-            Download the Excel template with the correct format and example data.
+            Descarcă șablonul Excel cu formatul corect și datele de exemplu.
           </p>
           <Button variant="outline" onClick={downloadTemplate}>
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Download Template
+            Descarcă șablon
           </Button>
         </div>
 
         {/* File Upload */}
         <div>
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Step 2: Upload Your File</h4>
+          <h4 className="text-sm font-medium text-gray-900 mb-2">Pasul 2: Încarcă fișierul</h4>
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
             <input
               ref={fileInputRef}
@@ -311,9 +311,9 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
                 <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="text-gray-600 mb-2">Click to upload your Excel file</p>
+                <p className="text-gray-600 mb-2">Click pentru a încărca fișierul Excel</p>
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                  Select File
+                  Selectează fișier
                 </Button>
               </div>
             ) : (
@@ -322,9 +322,9 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-gray-900 font-medium">{selectedFile.name}</p>
-                <p className="text-gray-600 text-sm">File selected successfully</p>
+                <p className="text-gray-600 text-sm">Fișier selectat cu succes</p>
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="mt-2">
-                  Choose Different File
+                  Alege un fișier diferit
                 </Button>
               </div>
             )}
@@ -340,10 +340,10 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nume Complet</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zonă</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Magazin</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -364,27 +364,27 @@ export function ProfileBulkImport({ onImportComplete, onCancel }: ProfileBulkImp
 
         {/* Format Requirements */}
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-yellow-800 mb-2">📋 Format Requirements</h4>
+          <h4 className="text-sm font-medium text-yellow-800 mb-2">📋 Cerințe de format</h4>
           <div className="text-sm text-yellow-700 space-y-1">
-            <p><strong>Required columns:</strong> email, full_name, role</p>
-            <p><strong>Valid roles:</strong> HR, ASM, STORE_MANAGER</p>
-            <p><strong>Zone requirements:</strong> Required for ASM roles</p>
-            <p><strong>Store requirements:</strong> Required for STORE_MANAGER roles</p>
-            <p><strong>Zone/Store names:</strong> Must match exactly (case-insensitive)</p>
+            <p><strong>Coloane necesare:</strong> email, full_name, role</p>
+            <p><strong>Roluri valide:</strong> HR, ASM, STORE_MANAGER</p>
+            <p><strong>Cerințe zonă:</strong> Necesare pentru rolurile ASM</p>
+            <p><strong>Cerințe magazin:</strong> Necesare pentru rolurile STORE_MANAGER</p>
+            <p><strong>Nume zonă/magazin:</strong> Trebuie să se potrivească exact (insensibil la majuscule)</p>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex justify-end space-x-3 pt-4 border-t">
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            Anulează
           </Button>
           <Button 
             onClick={processImport}
             disabled={!selectedFile || isProcessing}
             loading={isProcessing}
           >
-            {isProcessing ? 'Processing...' : 'Import Profiles'}
+            {isProcessing ? 'Processing...' : 'Importă Profile'}
           </Button>
         </div>
       </div>

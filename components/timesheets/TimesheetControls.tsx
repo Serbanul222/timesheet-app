@@ -12,7 +12,6 @@ import { PeriodAndStoreSelector } from './PeriodAndStoreSelector'
 import { EmployeeSelectionPanel } from './EmployeeSelectionPanel'
 import { EmployeeDelegationPanel } from './EmployeeDelegationPanel'
 import { DelegationInfoPanel } from './DelegationInfoPanel'
-//import { TimesheetSummaryPanel } from './TimesheetSummaryPanel'
 import { Button } from '@/components/ui/Button'
 
 interface TimesheetControlsProps {
@@ -89,14 +88,9 @@ export function TimesheetControls({
     onUpdate({ entries: newEntries });
   };
 
-  /**
-   * ✅ THE FIX: This is the complete, correct version of the function,
-   * with the placeholder comment replaced by the actual object properties.
-   */
   const handleEmployeeAdded = (newEmployee: any) => {
     const dateRange = generateDateRange(new Date(timesheetData.startDate), new Date(timesheetData.endDate));
     
-    // This newEntry object now correctly matches the TimesheetEntry type
     const newEntry = {
       employeeId: newEmployee.id,
       employeeName: newEmployee.full_name,
@@ -156,21 +150,6 @@ export function TimesheetControls({
         onDelegationChange={handleDelegationChange} 
       />
       
-      {/* {timesheetData.storeId && (
-        <TimesheetSummaryPanel
-          selectedEmployeeIds={selectedEmployeeIds}
-          selectedStoreId={timesheetData.storeId}
-          timesheetData={timesheetData}
-          stores={stores}
-          regularEmployees={regularEmployees}
-          delegatedEmployees={delegatedEmployees}
-          historicalEmployees={historicalEmployees}
-          employees={employees}
-          onSelectAll={() => handleEmployeeSelection(allAvailableEmployees.map((emp) => emp.id))}
-          onClearAll={() => handleEmployeeSelection([])}
-          isLoadingEmployees={loadingEmployees}
-        />
-      )} */}
       
       <DelegationInfoPanel delegatedEmployees={delegatedEmployees} />
     </div>

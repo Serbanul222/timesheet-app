@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { TimesheetDashboard } from '@/components/timesheets/TimesheetDashboard'
 import { TimesheetGrid } from '@/components/timesheets/TimesheetGrid'
 import { TimesheetControls } from '@/components/timesheets/TimesheetControls'
 import { TimesheetListView } from '@/components/timesheets/TimesheetListView'
@@ -47,22 +46,22 @@ function TimesheetsPageContent() {
     try {
       const loadedGridData = await TimesheetDataLoader.loadTimesheetForEdit({ timesheetId, includeHistoricalEmployees: true });
       if (!loadedGridData) {
-        toast.error('Timesheet not found'); setViewMode('list'); return;
+        toast.error('Pontajul nu a fost găsit'); setViewMode('list'); return;
       }
       const validation = TimesheetDataLoader.validateGridData(loadedGridData);
       if (!validation.isValid) {
-        toast.error('Failed to load timesheet data', { description: validation.errors.join(', ') }); setViewMode('list'); return;
+        toast.error('Eroare la încărcarea datelor pontajului', { description: validation.errors.join(', ') }); setViewMode('list'); return;
       }
       if (validation.warnings.length > 0) {
-        toast.warning('Data loaded with warnings', { description: validation.warnings.join(', ') });
+        toast.warning('Datele au fost încărcate cu avertismente', { description: validation.warnings.join(', ') });
       }
       setGridData(loadedGridData);
       setOriginalData(loadedGridData);
       setViewMode('grid');
-      toast.success('Timesheet loaded for editing');
+      toast.success('Pontaj pregătit pentru editare');
     } catch (error) {
       console.error('Failed to load timesheet for editing:', error);
-      toast.error('Failed to load timesheet', { description: error instanceof Error ? error.message : 'Unknown error' });
+      toast.error('Eroare la încărcarea pontajului', { description: error instanceof Error ? error.message : 'Unknown error' });
       setViewMode('list');
     } finally {
       setIsLoading(false);
@@ -107,16 +106,13 @@ function TimesheetsPageContent() {
   };
 
   const handleSaveSuccess = () => {
-    toast.success('Timesheet saved successfully!');
+    toast.success('Pontaj salvat cu succes!');
     setViewMode('list'); 
     setGridData(null); 
     setOriginalData(null); 
     setEditingTimesheetId(null);
   };
 
-  if (isLoading) {
-    return <div className="text-center py-20">Loading...</div>;
-  }
 
   return (
     <>
@@ -166,7 +162,7 @@ export default function TimesheetsPage() {
   return (
     <MainLayout>
       <div className="max-w-7xl mx-auto px-4 sm-px-6 lg-px-8 py-8">
-        <Suspense fallback={<div className="text-center py-20">Loading Page...</div>}>
+        <Suspense fallback={<div className="text-center py-20">Încărcare pagină...</div>}>
           <TimesheetsPageContent />
         </Suspense>
       </div>

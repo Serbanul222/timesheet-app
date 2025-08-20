@@ -2,7 +2,7 @@
 'use client'
 
 import { formatHours } from '@/lib/utils'
-import { StoreStats } from '@/hooks/timesheets/useTimesheetStatsData'
+import { StoreStats } from '@/hooks/timesheet/useTimesheetStatsData'
 
 interface StoreStatsPanelProps {
   stores: StoreStats[]
@@ -60,7 +60,7 @@ export function StoreStatsPanel({
       {stores.length > 10 && (
         <div className="text-center pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-500">
-            Showing top 10 stores by total hours • {stores.length} total stores
+            Vizualizare primele 10 magazine • {stores.length} total magazine
           </p>
         </div>
       )}
@@ -108,11 +108,11 @@ function StoreStatsCard({ store, onClick }: StoreStatsCardProps) {
             </h4>
             <div className="flex items-center space-x-4 mt-1">
               <p className="text-xs text-gray-600">
-                {store.employeeCount} employee{store.employeeCount !== 1 ? 's' : ''}
+                {store.employeeCount} angajat{store.employeeCount !== 1 ? 's' : ''}
               </p>
               <div className="flex items-center space-x-1">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getCompletionRateColor(store.completionRate)}`}>
-                  {store.completionRate.toFixed(1)}% completion
+                  {store.completionRate.toFixed(1)}% completat
                 </span>
               </div>
             </div>
@@ -125,7 +125,7 @@ function StoreStatsCard({ store, onClick }: StoreStatsCardProps) {
           {formatHours(store.totalHours)}
         </p>
         <p className="text-xs text-gray-500">
-          Avg {formatHours(store.averageHours)}/employee
+          Avg {formatHours(store.averageHours)}/angajat
         </p>
       </div>
     </div>

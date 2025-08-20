@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetDashboard.tsx - FIXED: Strict TypeScript compliance
+// components/timesheets/TimesheetDashboard.tsx - Using reusable EuropeanDateInput component
 'use client'
 
 import { useState, useMemo } from 'react'
@@ -8,7 +8,8 @@ import { usePermissions } from '@/hooks/auth/usePermissions'
 import { TimesheetOverview } from './visualization/TimesheetOverview'
 import { TimesheetStats } from './visualization/TimesheetStats'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { EuropeanDateInput } from '@/components/ui/EuropeanDateInput'
+import { formatDateEuropean } from '@/lib/utils/dateFormatting'
 
 interface DashboardFilters {
   period: 'week' | 'month' | 'quarter'
@@ -33,21 +34,21 @@ export function TimesheetDashboard({
   const permissions = usePermissions()
   const router = useRouter()
   
-  // Period labels mapping - like a HashMap in Java
+  // Period labels mapping
   const periodLabels: Record<DashboardFilters['period'], string> = {
     week: 'Săptămână',
     month: 'Lună',
     quarter: 'Trimestru'
   }
   
-  // Helper function to format date to YYYY-MM-DD with null safety
+  // Helper function to format date to YYYY-MM-DD
   const formatDateString = (date: Date): string => {
     const isoString = date.toISOString()
     const datePart = isoString.split('T')[0]
-    return datePart || '' // Fallback to empty string if split fails
+    return datePart || ''
   }
   
-  // Default to current month with proper type handling
+  // Default to current month
   const defaultFilters: DashboardFilters = useMemo(() => {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -59,7 +60,7 @@ export function TimesheetDashboard({
       endDate: formatDateString(endOfMonth)
     }
 
-    // Conditionally add optional properties only if they have values
+    // Add role-based filters
     if (profile?.role === 'STORE_MANAGER' && profile.store_id) {
       baseFilters.storeId = profile.store_id
     }
@@ -74,7 +75,7 @@ export function TimesheetDashboard({
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Handle period change with proper date string handling
+  // Handle period change
   const handlePeriodChange = (period: DashboardFilters['period']) => {
     const now = new Date()
     let startDate: Date
@@ -98,19 +99,15 @@ export function TimesheetDashboard({
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0)
     }
 
-    // Extract date strings explicitly for type safety
-    const startDateString = formatDateString(startDate)
-    const endDateString = formatDateString(endDate)
-
     setFilters(prev => ({
       ...prev,
       period,
-      startDate: startDateString,
-      endDate: endDateString
+      startDate: formatDateString(startDate),
+      endDate: formatDateString(endDate)
     }))
   }
 
-  // Handle manual date change
+  // Handle date change from EuropeanDateInput
   const handleDateChange = (field: 'startDate' | 'endDate', value: string) => {
     setFilters(prev => ({
       ...prev,
@@ -123,7 +120,6 @@ export function TimesheetDashboard({
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      // Simulate refresh - replace with actual data refresh logic
       await new Promise(resolve => setTimeout(resolve, 1000))
     } catch (error) {
       console.error('Failed to refresh dashboard:', error)
@@ -132,30 +128,30 @@ export function TimesheetDashboard({
     }
   }
 
-  // Quick navigation actions (remove unused function warnings)
+  // Navigation actions
   const handleCreateNew = () => {
-    console.log('Navigate to create new timesheet')
     if (onNavigateToGrid) {
       onNavigateToGrid()
     }
   }
 
-  const handleViewAll = () => {
-    console.log('Navigate to timesheet list')
-    if (onNavigateToList) {
-      onNavigateToList()
-    }
-  }
-
   // Handle clicks from detailed statistics
   const handleStoreClick = (storeId: string, storeName: string) => {
-    console.log('Navigate to timesheet grid for store:', storeName, storeId)
     router.push(`/timesheets?storeId=${storeId}&storeName=${encodeURIComponent(storeName)}`)
   }
 
   const handleEmployeeClick = (employeeId: string, employeeName: string) => {
-    console.log('Navigate to timesheet grid for employee:', employeeName, employeeId)
     router.push(`/timesheets?employeeId=${employeeId}&employeeName=${encodeURIComponent(employeeName)}`)
+  }
+
+  // Get period display in European format
+  const getPeriodDisplayText = (): string => {
+    if (filters.startDate && filters.endDate) {
+      const startDisplay = formatDateEuropean(filters.startDate)
+      const endDisplay = formatDateEuropean(filters.endDate)
+      return `${startDisplay} - ${endDisplay}`
+    }
+    return periodLabels[filters.period]
   }
 
   // Loading state
@@ -199,7 +195,7 @@ export function TimesheetDashboard({
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Panou de control pontaje</h1>
             <p className="text-gray-600 mt-1">
-              Crează un nou pontaj
+              Monitorizare și gestionare pontaje pentru perioada: <span className="font-medium">{getPeriodDisplayText()}</span>
             </p>
           </div>
           
@@ -262,20 +258,21 @@ export function TimesheetDashboard({
             </div>
           </div>
           
+          {/* European Date Inputs */}
           <div className="flex space-x-4">
-            <Input
+            <EuropeanDateInput
               label="De la"
-              type="date"
               value={filters.startDate}
-              onChange={(e) => handleDateChange('startDate', e.target.value)}
-              containerClassName="w-auto"
+              onChange={(date) => handleDateChange('startDate', date)}
+              disabled={isRefreshing}
+              required
             />
-            <Input
+            <EuropeanDateInput
               label="Până la"
-              type="date"
               value={filters.endDate}
-              onChange={(e) => handleDateChange('endDate', e.target.value)}
-              containerClassName="w-auto"
+              onChange={(date) => handleDateChange('endDate', date)}
+              disabled={isRefreshing}
+              required
             />
           </div>
         </div>

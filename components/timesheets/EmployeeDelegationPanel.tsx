@@ -33,9 +33,9 @@ export function EmployeeDelegationPanel({
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-medium text-gray-900">Employee Delegation</h4>
+        <h4 className="text-sm font-medium text-gray-900">Delegarea angajaților</h4>
         <div className="text-xs text-gray-500">
-          Permissions: {permissions.canCreateDelegation ? 'Yes' : 'No'}
+          Permisiuni: {permissions.canCreateDelegation ? 'Da' : 'Nu'}
         </div>
       </div>
       <div className="space-y-2">
@@ -47,7 +47,7 @@ export function EmployeeDelegationPanel({
                   {employee.full_name}
                   {employee.isDelegated && (
                     <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                      Delegated from {employee.delegation?.from_store_name}
+                      Delegat de la {employee.delegation?.from_store_name}
                     </span>
                   )}
                 </p>

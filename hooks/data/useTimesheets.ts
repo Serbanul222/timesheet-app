@@ -131,13 +131,36 @@ export function useTimesheets(filters: TimesheetFilters = {}) {
     },
   });
 
+  // Add delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (timesheetId: string) => {
+      const { error } = await supabase
+        .from('timesheets')
+        .delete()
+        .eq('id', timesheetId);
+      
+      if (error) throw error;
+      return timesheetId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['timesheets'] });
+      toast.success('Timesheet deleted successfully!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete timesheet');
+    },
+  });
+
   return {
     timesheets,
     isLoading,
     error,
     upsertTimesheet: createOrUpdateMutation.mutate,
     isUpserting: createOrUpdateMutation.isPending,
+    deleteTimesheet: deleteMutation.mutate,
+    isDeleting: deleteMutation.isPending,
     canCreate: permissions.canCreateTimesheets,
     canEdit: permissions.canEditTimesheets,
+    canDelete: permissions.canDeleteTimesheets, // Add this if it exists in permissions
   }
 }

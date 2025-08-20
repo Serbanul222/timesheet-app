@@ -2,12 +2,26 @@
 'use client'
 
 import { formatHours } from '@/lib/utils'
-import { StatusBreakdown } from '@/hooks/timesheets/useTimesheetStatsData'
+import { StatusBreakdown } from '@/hooks/timesheet/useTimesheetStatsData'
 
 interface StatusStatsPanelProps {
   statusData: StatusBreakdown[]
   isLoading: boolean
   className?: string
+}
+
+// Romanian translations for status names
+const getStatusTranslation = (status: string): string => {
+  const translations: Record<string, string> = {
+    'Working': 'Ore lucrate',
+    'Time Off': 'Concediu',
+    'Medical Leave': 'Concediu medical',
+    'Dispensation': 'Dispensă',
+    'Day Off': 'Zi liberă',
+    'ZL' : 'Zi liberă',
+    'CFP': 'Concediu fără plată'
+  }
+  return translations[status] || status
 }
 
 export function StatusStatsPanel({ 
@@ -58,7 +72,6 @@ export function StatusStatsPanel({
           <p className="text-xs text-gray-600">
            Această defalcare arată distribuția diferitelor stări de lucru pentru toate pontajele înregistrate în perioada selectată. 
            Fiecare status reprezintă un tipar de alocare a timpului.
-
           </p>
         </div>
       )}
@@ -128,7 +141,7 @@ function StatusStatsCard({ status }: StatusStatsCardProps) {
         {/* Status Info */}
         <div className="flex-1">
           <h4 className="text-sm font-medium text-gray-900">
-            {status.status}
+            {getStatusTranslation(status.status)}
           </h4>
           <div className="flex items-center space-x-3 mt-1">
             {/* Progress Bar */}

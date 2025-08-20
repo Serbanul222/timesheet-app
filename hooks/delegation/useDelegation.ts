@@ -27,7 +27,7 @@ export function useDelegation(options: {
   storeId?: string
   autoRefresh?: boolean
 } = {}) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const queryClient = useQueryClient()
   const [isCreating, setIsCreating] = useState(false)
   const [isRevoking, setIsRevoking] = useState(false)
@@ -95,8 +95,9 @@ export function useDelegation(options: {
       const result = await DelegationService.createDelegation(request, user.id)
       
       if (result.success) {
-        toast.success('Delegation created successfully', {
-          description: `Employee delegated until ${new Date(request.valid_until).toLocaleDateString()}`
+        // ✅ TRANSLATED: English to Romanian
+        toast.success('Delegația a fost creată cu succes', {
+          description: `Angajatul este delegat până la ${new Date(request.valid_until).toLocaleDateString()}`
         })
         
         // Invalidate related queries
@@ -105,15 +106,15 @@ export function useDelegation(options: {
         
         return result.delegation
       } else {
-        toast.error('Failed to create delegation', {
+        toast.error('Eroare la crearea delegației', {
           description: result.error
         })
         throw new Error(result.error)
       }
     } catch (error) {
       console.error('useDelegation: Create delegation error:', error)
-      toast.error('Failed to create delegation', {
-        description: error instanceof Error ? error.message : 'An unexpected error occurred'
+      toast.error('Eroare la crearea delegației', {
+        description: error instanceof Error ? error.message : 'A apărut o eroare neașteptată'
       })
       throw error
     } finally {
@@ -130,7 +131,7 @@ export function useDelegation(options: {
       const result = await DelegationService.revokeDelegation(delegationId, user.id)
       
       if (result.success) {
-        toast.success('Delegation revoked successfully')
+        toast.success('Delegația a fost revocată cu succes')
         
         // Invalidate related queries
         queryClient.invalidateQueries({ queryKey: ['delegations'] })
@@ -138,15 +139,15 @@ export function useDelegation(options: {
         
         return true
       } else {
-        toast.error('Failed to revoke delegation', {
+        toast.error('Eroare la revocarea delegației', {
           description: result.error
         })
         throw new Error(result.error)
       }
     } catch (error) {
       console.error('useDelegation: Revoke delegation error:', error)
-      toast.error('Failed to revoke delegation', {
-        description: error instanceof Error ? error.message : 'An unexpected error occurred'
+      toast.error('Eroare la revocarea delegației', {
+        description: error instanceof Error ? error.message : 'A apărut o eroare neașteptată'
       })
       throw error
     } finally {
@@ -173,7 +174,7 @@ export function useDelegation(options: {
 
   // Get delegation permissions for current user
   const permissions = useMemo((): DelegationPermissions => {
-    if (!user) {
+    if (!user || !profile) {
       return {
         canCreateDelegation: false,
         canRevokeDelegation: false,
@@ -184,9 +185,11 @@ export function useDelegation(options: {
       }
     }
 
-    const canCreateDelegation = ['HR', 'ASM', 'STORE_MANAGER'].includes(user.role)
+    // ✅ FIXED: Use profile.role instead of user.role
+    const userRole = profile.role as string | undefined
+    const canCreateDelegation = userRole ? ['HR', 'ASM', 'STORE_MANAGER'].includes(userRole) : false
     const canRevokeDelegation = canCreateDelegation
-    const canExtendDelegation = ['HR', 'ASM'].includes(user.role)
+    const canExtendDelegation = userRole ? ['HR', 'ASM'].includes(userRole) : false
     const canViewDelegations = canCreateDelegation
 
     return {
@@ -195,9 +198,10 @@ export function useDelegation(options: {
       canExtendDelegation,
       canViewDelegations,
       allowedStores: availableStores.map(store => store.id),
-      allowedZones: user.zone_id ? [user.zone_id] : []
+      // ✅ FIXED: Use profile.zone_id instead of user.zone_id
+      allowedZones: profile.zone_id ? [profile.zone_id] : []
     }
-  }, [user, availableStores])
+  }, [user, profile, availableStores])
 
   // Get delegations that are expiring soon
   const expiringSoonDelegations = useMemo(() => {
@@ -216,7 +220,7 @@ export function useDelegation(options: {
   // Validate delegation request
   const validateDelegationRequest = useCallback(async (request: CreateDelegationRequest) => {
     if (!user) {
-      return { isValid: false, error: 'User not authenticated', canDelegate: false }
+      return { isValid: false, error: 'Utilizator neautentificat', canDelegate: false }
     }
 
     try {

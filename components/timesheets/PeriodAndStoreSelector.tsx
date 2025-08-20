@@ -84,7 +84,7 @@ export function PeriodAndStoreSelector({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Date pickers (unchanged) */}
         <div>
-          <label className="block text-sm font-medium text-gray-900 mb-1">Data început * (DD/MM/YYYY)</label>
+          <label className="block text-sm font-medium text-gray-900 mb-1">Data început *</label>
           <div className="relative">
             <div className="grid">
               <input type="text" value={manualStartDate} onChange={(e) => handleManualDateChange('startDate', e.target.value)} onBlur={() => handleDateBlur('startDate')} placeholder="DD/MM/YYYY" disabled={isSaving} className="col-start-1 row-start-1 w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
@@ -96,7 +96,7 @@ export function PeriodAndStoreSelector({
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-900 mb-1">Data sfârșit * (DD/MM/YYYY)</label>
+          <label className="block text-sm font-medium text-gray-900 mb-1">Data sfârșit *</label>
           <div className="relative">
             <div className="grid">
               <input type="text" value={manualEndDate} onChange={(e) => handleManualDateChange('endDate', e.target.value)} onBlur={() => handleDateBlur('endDate')} placeholder="DD/MM/YYYY" disabled={isSaving} className="col-start-1 row-start-1 w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />

@@ -2,8 +2,7 @@
 'use client'
 
 import { formatHours } from '@/lib/utils'
-import { EmployeeStats } from '@/hooks/timesheets/useTimesheetStatsData'
-
+import { EmployeeStats } from '@/hooks/timesheet/useTimesheetStatsData'
 interface EmployeeStatsPanelProps {
   employees: EmployeeStats[]
   isLoading: boolean
@@ -64,7 +63,7 @@ export function EmployeeStatsPanel({
       {employees.length > 10 && (
         <div className="text-center pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-500">
-            Showing top 10 employees by total hours • {employees.length} total employees
+         Vizualizare primii 10 angajați • {employees.length} total angajați
           </p>
         </div>
       )}
@@ -142,7 +141,7 @@ function EmployeeStatsCard({ employee, rank, onClick }: EmployeeStatsCardProps) 
             </h4>
             {employee.status === 'delegated' && (
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(employee.status)}`}>
-                Delegated
+                Delegat
               </span>
             )}
           </div>
@@ -151,7 +150,7 @@ function EmployeeStatsCard({ employee, rank, onClick }: EmployeeStatsCardProps) 
               {employee.position}
             </p>
             <p className="text-xs text-gray-500">
-              {employee.daysWorked} days worked
+              {employee.daysWorked} zile lucrate
             </p>
           </div>
         </div>
@@ -163,7 +162,7 @@ function EmployeeStatsCard({ employee, rank, onClick }: EmployeeStatsCardProps) 
           {formatHours(employee.totalHours)}
         </p>
         <p className="text-xs text-gray-500">
-          Avg {formatHours(employee.averageDaily)}/day
+          Avg {formatHours(employee.averageDaily)}/zi
         </p>
       </div>
     </div>
