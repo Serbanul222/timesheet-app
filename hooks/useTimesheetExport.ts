@@ -145,7 +145,7 @@ export function useTimesheetExport() {
         preview: {
           totalTimesheets, totalEmployees: employees.size, totalHours, dateRange: options.dateRange,
           sampleData: timesheetData?.slice(0, 5).map(ts => ({
-            id: ts.id, store: ts.store?.name || 'Unknown', period: `${ts.period_start} to ${ts.period_end}`, hours: ts.total_hours || 0
+            id: ts.id, store: ts.store?.[0]?.name || 'Unknown', period: `${ts.period_start} to ${ts.period_end}`, hours: ts.total_hours || 0
           })) || []
         }
       }

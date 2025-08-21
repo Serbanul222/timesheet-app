@@ -1,8 +1,10 @@
-// FILE: app/timesheets/page.tsx - REWRITTEN
+// FILE: app/timesheets/page.tsx - REWRITTEN with automatic list refresh
 'use client'
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+// ✅ 1. Import the useQueryClient hook from TanStack Query
+import { useQueryClient } from '@tanstack/react-query'
 import { TimesheetGrid } from '@/components/timesheets/TimesheetGrid'
 import { TimesheetControls } from '@/components/timesheets/TimesheetControls'
 import { TimesheetListView } from '@/components/timesheets/TimesheetListView'
@@ -35,6 +37,9 @@ export interface TimesheetGridRecord {
  */
 function TimesheetsPageContent() {
   const searchParams = useSearchParams()
+  // ✅ 2. Get an instance of the query client to manage the cache
+  const queryClient = useQueryClient();
+
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isLoading, setIsLoading] = useState(true)
   const [editingTimesheetId, setEditingTimesheetId] = useState<string | null>(null)
@@ -99,17 +104,28 @@ function TimesheetsPageContent() {
   };
 
   const handleCancel = () => {
-    setViewMode('list'); 
-    setGridData(null); 
-    setOriginalData(null); 
+    setViewMode('list');
+    setGridData(null);
+    setOriginalData(null);
     setEditingTimesheetId(null);
   };
 
+  /**
+   * ✅ 3. This function is now updated to handle the data refresh.
+   * After a successful save, it invalidates the TanStack Query cache for the
+   * timesheet list, which automatically triggers a refetch in the TimesheetListView.
+   */
   const handleSaveSuccess = () => {
     toast.success('Pontaj salvat cu succes!');
-    setViewMode('list'); 
-    setGridData(null); 
-    setOriginalData(null); 
+    
+    // Invalidate the query. The key ['timesheet_grids'] must exactly match the
+    // queryKey used in the useQuery hook inside TimesheetListView.tsx.
+    queryClient.invalidateQueries({ queryKey: ['timesheet_grids'] });
+
+    // After invalidating, switch the view and reset the state as before.
+    setViewMode('list');
+    setGridData(null);
+    setOriginalData(null);
     setEditingTimesheetId(null);
   };
 
@@ -130,8 +146,6 @@ function TimesheetsPageContent() {
             isSaving={false}
             existingTimesheetId={editingTimesheetId || undefined}
             originalData={originalData}
-            // ✅ THE FIX: This line connects the "Back to List" button
-            // in the controls to the correct handler on this page.
             onCancel={handleCancel}
           />
           {gridData && gridData.storeId ? (
@@ -139,7 +153,7 @@ function TimesheetsPageContent() {
               data={gridData}
               onDataChange={handleGridDataChange}
               onCancel={handleCancel}
-              onSaveSuccess={handleSaveSuccess}
+              onSaveSuccess={handleSaveSuccess} // This triggers the refresh logic
               readOnly={false}
             />
           ) : (
