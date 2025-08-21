@@ -1,3 +1,5 @@
+// /api/admin/profiles/route.ts
+
 import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
@@ -65,7 +67,7 @@ function validateData(data: any, schema: Record<string, Function>) {
 
 
 // ============================================================================
-// GET /api/admin/profiles - With Correct Status Logic
+// GET /api/admin/profiles - Fetches all profiles with auth status
 // ============================================================================
 export async function GET(request: NextRequest) {
   try {
@@ -101,8 +103,6 @@ export async function GET(request: NextRequest) {
 
           const user = authData.user;
           const isConfirmed = !!user.email_confirmed_at;
-          
-          // ✅ CORRECTED LOGIC: A user's setup is complete if they have logged in.
           const hasCompletedSetup = isConfirmed && !!user.last_sign_in_at;
           
           return {
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
 
 
 // ============================================================================
-// POST /api/admin/profiles - With UPSERT Logic
+// POST /api/admin/profiles - Creates user and sends password set invitation
 // ============================================================================
 export async function POST(request: NextRequest) {
   let newAuthUserId: string | null = null;
@@ -170,25 +170,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Validation failed.', details: validation.errors }, { status: 400 });
     }
 
-    // Step 3: Create Auth User. The `handle_new_user` trigger will fire after this.
+    // ✅ Step 3: Invite Auth User via Email to set their password.
+    // This replaces `createUser` to handle the invitation flow automatically.
     const email = body.email.trim().toLowerCase();
-    const { data: authUserResponse, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email,
-      email_confirm: false,
-      user_metadata: { full_name: body.full_name.trim(), role: body.role },
-    });
+    const { data: authUserResponse, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        email,
+        {
+          // IMPORTANT: Ensure NEXT_PUBLIC_BASE_URL is set in your .env.local file
+          // e.g., NEXT_PUBLIC_BASE_URL=http://localhost:3000
+          redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/set-password`,
+          data: { 
+            full_name: body.full_name.trim(), 
+            role: body.role 
+          }, // This metadata is available on the user object
+        }
+    );
 
     if (authError) {
       if (authError.message.includes('already registered')) {
         return NextResponse.json({ error: 'Email already in use.', details: { email: 'A user with this email is already registered.' } }, { status: 409 });
       }
-      console.error('❌ POST Error creating auth user:', authError);
-      return NextResponse.json({ error: 'Failed to create user account.', details: authError.message }, { status: 500 });
+      console.error('❌ POST Error inviting user:', authError);
+      return NextResponse.json({ error: 'Failed to send user invitation.', details: authError.message }, { status: 500 });
+    }
+
+    if (!authUserResponse.user) {
+      return NextResponse.json({ error: 'User could not be created from invitation.' }, { status: 500 });
     }
 
     newAuthUserId = authUserResponse.user.id;
 
-    // Step 4: Use UPSERT to update the profile created by the trigger.
+    // Step 4: Use UPSERT to update the profile created by your database trigger.
     const profileData = {
       id: newAuthUserId, // This matches the record created by the trigger
       email: email,
@@ -200,12 +212,12 @@ export async function POST(request: NextRequest) {
     
     const { data: updatedProfile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .upsert(profileData) // Use upsert to prevent conflict with trigger
+      .upsert(profileData)
       .select('*, zone:zones(id, name), store:stores(id, name)')
       .single();
 
     if (profileError) {
-      // If this fails, it's a legitimate problem (e.g., bad foreign key).
+      // If this fails, the cleanup logic will delete the orphaned auth user.
       throw profileError;
     }
 
@@ -214,18 +226,18 @@ export async function POST(request: NextRequest) {
         ...updatedProfile,
         auth_status: {
             exists: true,
-            email_confirmed: false,
+            email_confirmed: false, // Email is not confirmed until they set their password
             last_sign_in_at: null,
             has_completed_setup: false,
-            is_pending_setup: true,
+            is_pending_setup: true, // User is now pending setup
             account_created_at: authUserResponse.user.created_at,
         }
     };
 
-    return NextResponse.json({ success: true, profile: responsePayload, message: 'Profile created successfully.' }, { status: 201 });
+    return NextResponse.json({ success: true, profile: responsePayload, message: 'Invitation sent and profile created.' }, { status: 201 });
 
   } catch (error: any) {
-    // Critical cleanup logic
+    // Critical cleanup logic: If profile creation fails, delete the invited auth user.
     if (newAuthUserId) {
       console.log(`🧹 Cleaning up orphaned auth user due to error: ${newAuthUserId}`);
       await supabaseAdmin.auth.admin.deleteUser(newAuthUserId);
@@ -233,7 +245,6 @@ export async function POST(request: NextRequest) {
     
     console.error('❌ POST /api/admin/profiles transaction failed:', error);
 
-    // This error should no longer happen, but is kept for safety
     if (error.code === '23505') {
       return NextResponse.json({ error: 'A profile with this email already exists.', details: { email: 'The email address is already tied to a profile.' } }, { status: 409 });
     }
