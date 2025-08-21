@@ -1,4 +1,4 @@
-// components/reports/ExportPanel.tsx - Main Controller Component
+// components/reports/ExportPanel.tsx - Final Excel-Only Version
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -12,49 +12,41 @@ import { ExportConfigPanel } from './ExportConfigPanel'
 import { ExportActionPanel } from './ExportActionPanel'
 
 //================================================================================
-// TYPES
+// TYPES (Updated for Excel only)
 //================================================================================
+type ExportFormat = 'excel'; // Type is now fixed
+interface TimesheetPeriod { start: string; end: string; label: string; count: number; stores: string[]; }
+interface DateRange { startDate: string; endDate: string; }
+interface ExportPanelProps { userRole: string; }
 
-type ExportFormat = 'excel' | 'csv'
-
-interface TimesheetPeriod {
-  start: string
-  end: string
-  label: string
-  count: number
-  stores: string[]
-}
-
-interface DateRange {
-  startDate: string
-  endDate: string
-}
-
-interface ExportPanelProps {
-  userRole: string
-}
+const downloadFile = (buffer: ArrayBuffer, filename: string, mimeType: string) => {
+  const blob = new Blob([buffer], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  console.log(`📥 Download triggered for ${filename}`);
+};
 
 //================================================================================
 // MAIN CONTROLLER COMPONENT
 //================================================================================
-
 export default function ExportPanel({ userRole }: ExportPanelProps) {
   const { exportState, exportTimesheets, validateExportOptions, getAvailableFormats } = useTimesheetExport()
   
   // State management
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('excel')
+  // `selectedFormat` is no longer needed as state, it's always 'excel'
   const [dateRange, setDateRange] = useState<DateRange>({ startDate: '', endDate: '' })
   const [options, setOptions] = useState({ includeNotes: true, includeEmptyDays: false })
   const [customFilename, setCustomFilename] = useState('')
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState<number>(-1)
 
-  // Get available formats based on user role
-  const availableFormats = useMemo(
-    () => getAvailableFormats(userRole),
-    [getAvailableFormats, userRole]
-  )
+  const availableFormats = useMemo(() => getAvailableFormats(userRole), [getAvailableFormats, userRole])
 
-  // Set default date range on mount
   useEffect(() => {
     const today = new Date()
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -64,56 +56,49 @@ export default function ExportPanel({ userRole }: ExportPanelProps) {
     })
   }, [])
 
-  // Event handlers
   const handlePeriodSelect = useCallback((period: TimesheetPeriod, index: number) => {
     setDateRange({ startDate: period.start, endDate: period.end })
     setSelectedPeriodIndex(index)
   }, [])
 
-  const handleCustomDateChange = useCallback(
-    (field: 'startDate' | 'endDate', value: string) => {
-      setDateRange(prev => ({ ...prev, [field]: value }))
-      setSelectedPeriodIndex(-1) // Deselect period on manual date change
-    },
-    []
-  )
+  const handleCustomDateChange = useCallback((field: 'startDate' | 'endDate', value: string) => {
+    setDateRange(prev => ({ ...prev, [field]: value }))
+    setSelectedPeriodIndex(-1)
+  }, [])
 
-  const handleOptionChange = useCallback(
-    (option: keyof typeof options, value: boolean) => {
-      setOptions(prev => ({ ...prev, [option]: value }))
-    },
-    []
-  )
+  const handleOptionChange = useCallback((option: keyof typeof options, value: boolean) => {
+    setOptions(prev => ({ ...prev, [option]: value }))
+  }, [])
 
-  // Handle export
   const handleExport = useCallback(async () => {
-    const baseOptions = {
+    const exportOptions = {
       dateRange,
       includeNotes: options.includeNotes,
-      includeEmptyDays: options.includeEmptyDays
-    }
+      includeEmptyDays: options.includeEmptyDays,
+      ...(customFilename.trim() && { filename: customFilename.trim() })
+    };
     
-    const exportOptions = customFilename.trim() 
-      ? { ...baseOptions, filename: customFilename.trim() }
-      : baseOptions
-    
-    const errors = validateExportOptions({ ...exportOptions, format: selectedFormat })
+    const errors = validateExportOptions(exportOptions)
     if (errors.length > 0) {
-      console.error(`Opțiuni invalide: ${errors.join(', ')}`)
+      console.error(`Invalid options: ${errors.join(', ')}`)
       return
     }
-    await exportTimesheets(selectedFormat, exportOptions)
-  }, [dateRange, options, selectedFormat, customFilename, validateExportOptions, exportTimesheets])
 
-  // Calculate if export should be disabled
-  const isExportDisabled = useMemo(() => {
-    return (
-      exportState.isLoading ||
-      !dateRange.startDate ||
-      !dateRange.endDate ||
-      new Date(dateRange.startDate) > new Date(dateRange.endDate)
-    )
-  }, [exportState.isLoading, dateRange])
+    const result = await exportTimesheets(exportOptions)
+    
+    if (result.success && result.data) {
+      downloadFile(result.data.buffer, result.data.filename, result.data.mimeType);
+    } else {
+      console.error("Export process failed:", result.error);
+    }
+  }, [dateRange, options, customFilename, validateExportOptions, exportTimesheets])
+
+  const isExportDisabled = useMemo(() => (
+    exportState.isLoading ||
+    !dateRange.startDate ||
+    !dateRange.endDate ||
+    new Date(dateRange.startDate) > new Date(dateRange.endDate)
+  ), [exportState.isLoading, dateRange])
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-6xl mx-auto">
@@ -122,9 +107,7 @@ export default function ExportPanel({ userRole }: ExportPanelProps) {
         isLoading={exportState.isLoading}
         lastExport={exportState.lastExport}
       />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column - Period Selection & Date Range */}
         <div className="space-y-6">
           <ExportPeriodSelector
             onPeriodSelect={handlePeriodSelect}
@@ -137,24 +120,20 @@ export default function ExportPanel({ userRole }: ExportPanelProps) {
             disabled={exportState.isLoading}
           />
         </div>
-
-        {/* Middle Column - Configuration */}
         <ExportConfigPanel
           availableFormats={availableFormats}
-          selectedFormat={selectedFormat}
-          onFormatSelect={setSelectedFormat}
+          selectedFormat={'excel'} // Hardcoded
+          onFormatSelect={() => {}} // No-op, selection is disabled
           options={options}
           onOptionChange={handleOptionChange}
           onFilenameChange={setCustomFilename}
           disabled={exportState.isLoading}
         />
-
-        {/* Right Column - Actions */}
         <ExportActionPanel
           exportState={exportState}
           onExport={handleExport}
           disabled={isExportDisabled}
-          format={selectedFormat}
+          format={'excel'} // Hardcoded
           dateRange={dateRange}
           options={options}
         />

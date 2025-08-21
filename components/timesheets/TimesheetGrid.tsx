@@ -1,7 +1,7 @@
-// FILE: components/timesheets/TimesheetGrid.tsx - REWRITTEN
+// FILE: components/timesheets/TimesheetGrid.tsx - REWRITTEN & COMPLETE
 'use client'
 
-import { useMemo, useCallback, useState } from 'react'
+import { useMemo, useCallback, useState, useEffect } from 'react'
 import { TimesheetGridHeader } from './TimesheetGridHeader'
 import { TimesheetGridRow } from './TimesheetGridRow'
 import { TimesheetGridFooter } from './TimesheetGridFooter'
@@ -11,6 +11,17 @@ import { generateDateRange, calculateTotalHours, formatDateLocal } from '@/lib/t
 import { useTimesheetSave } from '@/hooks/timesheet/useTimesheetSave'
 import { useGridValidation } from '@/hooks/validation/useGridValidation'
 import { TimesheetCreator } from './TimesheetCreator'
+
+/**
+ * Defines the shape for the shared column width state.
+ * This can be exported and used by child components for prop typing.
+ */
+export interface ColumnWidths {
+  employeeName: number
+  position: number
+  dateColumns: Record<string, number> // Key is date string 'YYYY-MM-DD'
+  total: number
+}
 
 const parseTimeInterval = (interval: string): { startTime: string; endTime: string; hours: number } | null => {
   if (!interval || !interval.trim()) return null
@@ -34,10 +45,9 @@ const parseTimeInterval = (interval: string): { startTime: string; endTime: stri
 
 interface TimesheetGridProps {
   data: TimesheetGridData | null
-  // ✅ FIX: The prop type is changed to Partial<TimesheetGridData> to match what page.tsx provides.
   onDataChange: (updates: Partial<TimesheetGridData>) => void
   onCancel: () => void
-  onSaveSuccess: () => void // Make sure to pass this from page.tsx
+  onSaveSuccess: () => void
   readOnly?: boolean
   className?: string
 }
@@ -51,10 +61,6 @@ export function TimesheetGrid({
   className = ''
 }: TimesheetGridProps) {
   
-  /**
-   * This "translator" function converts the simple data from TimesheetCreator
-   * into the full TimesheetGridData object the app needs. This is necessary plumbing.
-   */
   const handleGridCreate = (creatorData: {
     startDate: Date
     endDate: Date
@@ -88,20 +94,75 @@ export function TimesheetGrid({
     onDataChange(newGridData);
   };
   
-  // Your original logic: if data is null, render the creator.
   if (!data) {
-    // ✅ FIX: The prop name is changed from 'onGridCreate' to 'onCreateTimesheet'
-    // to match what the TimesheetCreator component actually expects.
     return <TimesheetCreator onCreateTimesheet={handleGridCreate} onCancel={onCancel} />;
   }
-
-  // --- ALL OF YOUR ORIGINAL LOGIC IS PRESERVED BELOW ---
 
   const { startDate, endDate, entries } = data
   
   const dateRange = useMemo(() => {
     return generateDateRange(new Date(startDate), new Date(endDate))
   }, [startDate, endDate])
+
+  // --- STATE LIFTING: Central state for all column widths ---
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>({
+    employeeName: 160,
+    position: 96,
+    dateColumns: {},
+    total: 64
+  });
+
+  // Effect to load widths from localStorage and sync with the current date range
+  useEffect(() => {
+    const saved = localStorage.getItem('timesheetColumnWidths');
+    const loadedWidths = saved ? JSON.parse(saved) : {};
+
+    setColumnWidths(prev => {
+        const newDateColumns = { ...loadedWidths.dateColumns };
+        let hasChanged = false;
+
+        // Ensure every date in the current range has a defined width
+        dateRange.forEach(date => {
+            const dateKey = formatDateLocal(date);
+            if (!newDateColumns[dateKey]) {
+                newDateColumns[dateKey] = 48; // Default width for new dates
+                hasChanged = true;
+            }
+        });
+        
+        const finalWidths = {
+            employeeName: loadedWidths.employeeName || prev.employeeName,
+            position: loadedWidths.position || prev.position,
+            total: loadedWidths.total || prev.total,
+            dateColumns: newDateColumns,
+        };
+
+        if (hasChanged) {
+            localStorage.setItem('timesheetColumnWidths', JSON.stringify(finalWidths));
+        }
+
+        return finalWidths;
+    });
+  }, [dateRange]);
+
+  // Callback to handle resize events from the header, update state, and persist
+  const handleColumnResize = useCallback((columnType: keyof ColumnWidths | string, newWidth: number) => {
+    setColumnWidths(prev => {
+        const newColumnWidths = { ...prev };
+        if (['employeeName', 'position', 'total'].includes(columnType)) {
+          newColumnWidths[columnType as 'employeeName' | 'position' | 'total'] = newWidth
+        } else {
+          newColumnWidths.dateColumns = {
+            ...newColumnWidths.dateColumns,
+            [columnType]: newWidth
+          }
+        }
+        localStorage.setItem('timesheetColumnWidths', JSON.stringify(newColumnWidths));
+        return newColumnWidths;
+    });
+  }, []);
+  // --- END OF STATE LIFTING LOGIC ---
+
 
   const [selectedCell, setSelectedCell] = useState<{ employeeId: string; date: string } | null>(null)
 
@@ -124,7 +185,7 @@ export function TimesheetGrid({
     gridId: data.id,
     onSuccess: (result) => {
       console.log('Grid save successful:', result)
-      onSaveSuccess() // Notify parent page of success
+      onSaveSuccess()
     },
     onPartialSuccess: (result) => {
       console.log('Grid save partially successful:', result)
@@ -187,19 +248,8 @@ export function TimesheetGrid({
 
   const handleSave = async () => {
     if (readOnly || !canSave) return
-
-    if (!validationResult.isValid) {
-      console.warn('Cannot save: Validation errors present')
-      return
-    }
-
     try {
-      const enrichedData = {
-        ...data,
-        storeId: data.storeId || undefined,
-        zoneId: data.zoneId || undefined
-      }
-      
+      const enrichedData = { ...data, storeId: data.storeId || undefined, zoneId: data.zoneId || undefined }
       await saveTimesheet(enrichedData)
     } catch (error) {
       console.error('Grid save failed:', error)
@@ -232,14 +282,30 @@ export function TimesheetGrid({
         </div>
       )}
       {lastSaveResult && (<div className="p-4 border-b border-gray-200"><SaveStatusDisplay result={lastSaveResult} onDismiss={clearLastResult} /></div>)}
+      
       {data.entries.length > 0 && hasBasicSetup() ? (
         <>
           <div className="overflow-x-auto overflow-y-visible">
             <div style={{ minWidth: 'max-content' }}>
-              <TimesheetGridHeader dateRange={dateRange} dailyTotals={dailyTotals} />
+              <TimesheetGridHeader 
+                dateRange={dateRange} 
+                dailyTotals={dailyTotals}
+                columnWidths={columnWidths}
+                onColumnResize={handleColumnResize}
+              />
               <div className="timesheet-grid-body">
                 {data.entries.map((entry) => (
-                  <TimesheetGridRow key={entry.employeeId} entry={entry} dateRange={dateRange} totalHours={employeeTotals[entry.employeeId]} selectedCell={selectedCell} readOnly={readOnly} onCellSelect={handleCellSelect} onUpdateCell={updateCell} />
+                  <TimesheetGridRow 
+                    key={entry.employeeId} 
+                    entry={entry} 
+                    dateRange={dateRange} 
+                    totalHours={employeeTotals[entry.employeeId]} 
+                    selectedCell={selectedCell} 
+                    readOnly={readOnly} 
+                    onCellSelect={handleCellSelect} 
+                    onUpdateCell={updateCell}
+                    columnWidths={columnWidths}
+                  />
                 ))}
               </div>
             </div>

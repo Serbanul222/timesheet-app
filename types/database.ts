@@ -70,6 +70,44 @@ export interface TimesheetDailyEntries {
   }>>
 }
 
+
+// Add these types to your types/database.ts file
+
+// ✅ NEW: Save operation configuration
+export interface SaveOptions {
+  gridSessionId: string;
+  createdBy: string;
+  skipValidation?: boolean;
+  backupBeforeSave?: boolean;
+  notifyOnComplete?: boolean;
+}
+
+// ✅ NEW: Save operation result
+export interface SaveResult {
+  success: boolean;
+  savedCount: number;
+  failedCount: number;
+  errors: Array<{
+    employeeId: string;
+    employeeName: string;
+    error: string;
+    details?: any;
+  }>;
+  savedTimesheets: Array<{
+    employeeId: string;
+    employeeName: string;
+    timesheetId: string;
+    isUpdate: boolean;
+  }>;
+  sessionId: string;
+  warnings?: string[];
+  validationResults?: {
+    errors: any[];
+    warnings: any[];
+    setupErrors: any[];
+  };
+}
+
 // ✅ ENHANCED: Legacy DailyEntry for backward compatibility with time intervals
 export interface DailyEntry {
   readonly date: string;

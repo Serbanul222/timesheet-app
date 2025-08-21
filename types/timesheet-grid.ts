@@ -202,13 +202,13 @@ export const VALIDATION_RULES = {
 // ✅ NEW: Default status for new cells
 export const DEFAULT_CELL_STATUS: DayStatus = 'alege'
 
-// ✅ NEW: Common validation messages
+// ✅ NOU: Mesaje de validare comune
 export const VALIDATION_MESSAGES = {
-  HOURS_ABSENCE_CONFLICT: 'Cannot have working hours with full-day absence',
-  PARTIAL_HOURS_REQUIRED: 'This absence type requires working hours',
-  INVALID_TIME_FORMAT: 'Invalid time format. Use "10-12" or "9:30-17:30"',
-  SHIFT_TOO_LONG: 'Shift cannot exceed 16 hours',
-  SHIFT_TOO_SHORT: 'Shift must be at least 30 minutes',
-  WEEKEND_WORK: 'Weekend work detected',
-  INVALID_STATUS: 'Invalid status selected'
-} as const
+  HOURS_ABSENCE_CONFLICT: 'Nu se pot avea ore de lucru cu o absență de o zi întreagă',
+  PARTIAL_HOURS_REQUIRED: 'Acest tip de absență necesită ore de lucru',
+  INVALID_TIME_FORMAT: 'Formatul orei este invalid. Folosește "10-12" sau "9:30-17:30"',
+  SHIFT_TOO_LONG: 'Tura nu poate depăși 16 ore',
+  SHIFT_TOO_SHORT: 'Tura trebuie să aibă cel puțin 30 de minute',
+  WEEKEND_WORK: 'S-a detectat lucru în weekend',
+  INVALID_STATUS: 'Status selectat invalid'
+} as const;

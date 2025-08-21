@@ -250,7 +250,7 @@ export function TimeIntervalInput({
       return 'Read-only mode'
     }
     
-    return 'Double-click to edit time interval'
+    return 'Dublu-click pentru a edita intervalul de timp'
   }
   
   // ✅ ENHANCED: Read-only mode with better data display

@@ -1,4 +1,4 @@
-// FILE: components/timesheets/TimesheetControls.tsx - REWRITTEN
+// FILE: components/timesheets/TimesheetControls.tsx
 'use client'
 
 import { useEffect, useMemo } from 'react'
@@ -72,24 +72,64 @@ export function TimesheetControls({
   };
   
   const handleEmployeeSelection = (newlySelectedIds: string[]) => {
-    const selectedEmployeeObjects = allAvailableEmployees.filter((emp) => newlySelectedIds.includes(emp.id));
-    if (selectedEmployeeObjects.length === 0) { onUpdate({ entries: [] }); return; }
-    const dateRange = generateDateRange(new Date(timesheetData.startDate), new Date(timesheetData.endDate));
-    const savedDataMap = new Map(originalData?.entries?.map(entry => [entry.employeeId, entry.days]) || []);
+    const selectedEmployeeObjects = allAvailableEmployees.filter((emp) => 
+      newlySelectedIds.includes(emp.id)
+    );
+
+    if (selectedEmployeeObjects.length === 0) { 
+      onUpdate({ entries: [] }); 
+      return; 
+    }
+
+    const dateRange = generateDateRange(
+      new Date(timesheetData.startDate), 
+      new Date(timesheetData.endDate)
+    );
+
+    const savedDataMap = new Map(
+      originalData?.entries?.map(entry => [entry.employeeId, entry.days]) || []
+    );
+    
+    const currentDataMap = new Map(
+      timesheetData.entries.map(entry => [entry.employeeId, entry.days])
+    );
+
     const newEntries = selectedEmployeeObjects.map((emp) => {
-      const existingDays = savedDataMap.get(emp.id);
+      const currentDays = currentDataMap.get(emp.id);
+      const savedDays = savedDataMap.get(emp.id);
+      
       const days = dateRange.reduce((acc, date) => {
         const dateKey = formatDateLocal(date);
-        acc[dateKey] = existingDays?.[dateKey] || { timeInterval: '', startTime: '', endTime: '', hours: 0, status: 'alege' as DayStatus, notes: '' };
+        
+        acc[dateKey] = currentDays?.[dateKey] || 
+                      savedDays?.[dateKey] || 
+                      { 
+                        timeInterval: '', 
+                        startTime: '', 
+                        endTime: '', 
+                        hours: 0, 
+                        status: 'alege' as DayStatus, 
+                        notes: '' 
+                      };
         return acc;
       }, {} as Record<string, any>);
-      return { employeeId: emp.id, employeeName: emp.full_name, position: emp.position || 'Staff', days };
+
+      return { 
+        employeeId: emp.id, 
+        employeeName: emp.full_name, 
+        position: emp.position || 'Staff', 
+        days 
+      };
     });
+
     onUpdate({ entries: newEntries });
   };
 
   const handleEmployeeAdded = (newEmployee: any) => {
-    const dateRange = generateDateRange(new Date(timesheetData.startDate), new Date(timesheetData.endDate));
+    const dateRange = generateDateRange(
+      new Date(timesheetData.startDate), 
+      new Date(timesheetData.endDate)
+    );
     
     const newEntry = {
       employeeId: newEmployee.id,
@@ -97,7 +137,14 @@ export function TimesheetControls({
       position: newEmployee.position || 'Staff',
       days: dateRange.reduce((acc, date) => {
         const dateKey = formatDateLocal(date);
-        acc[dateKey] = { timeInterval: '', startTime: '', endTime: '', hours: 0, status: 'alege' as DayStatus, notes: '' };
+        acc[dateKey] = { 
+          timeInterval: '', 
+          startTime: '', 
+          endTime: '', 
+          hours: 0, 
+          status: 'alege' as DayStatus, 
+          notes: '' 
+        };
         return acc;
       }, {} as Record<string, any>),
     };
@@ -125,6 +172,7 @@ export function TimesheetControls({
         isSaving={isSaving}
         isLoadingStores={loadingStores}
         isStoreManager={profile?.role === 'STORE_MANAGER' && stores.length === 1}
+        isEditing={!!existingTimesheetId}
       />
       
       <EmployeeSelectionPanel
@@ -149,7 +197,6 @@ export function TimesheetControls({
         delegatedEmployees={delegatedEmployees}
         onDelegationChange={handleDelegationChange} 
       />
-      
       
       <DelegationInfoPanel delegatedEmployees={delegatedEmployees} />
     </div>

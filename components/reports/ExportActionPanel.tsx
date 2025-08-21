@@ -116,7 +116,6 @@ export function ExportActionPanel({
         <ul className="space-y-1 text-xs">
           <li>• Selectați o perioadă sau setați un interval de date personalizat pentru export.</li>
           <li>• Intervalele de date mari pot dura câteva momente pentru a fi procesate.</li>
-          <li>• Utilizați formatul CSV pentru analiză în alte software-uri.</li>
         </ul>
       </div>
     </div>

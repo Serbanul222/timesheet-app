@@ -108,7 +108,7 @@ function StoreStatsCard({ store, onClick }: StoreStatsCardProps) {
             </h4>
             <div className="flex items-center space-x-4 mt-1">
               <p className="text-xs text-gray-600">
-                {store.employeeCount} angajat{store.employeeCount !== 1 ? 's' : ''}
+                {store.employeeCount} angajat{store.employeeCount !== 1 ? 'i' : ''}
               </p>
               <div className="flex items-center space-x-1">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getCompletionRateColor(store.completionRate)}`}>

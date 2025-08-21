@@ -1,4 +1,4 @@
-// components/timesheets/TimesheetCell.tsx - FIXED: Proper status handling and validation
+// FILE: components/timesheets/TimesheetCell.tsx - REWRITTEN & COMPLETE
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -25,9 +25,9 @@ interface TimesheetCellProps {
   isWeekend: boolean
   isSelected: boolean
   readOnly: boolean
+  width: number // New prop for width, controlled by parent
   onSelect: () => void
   onUpdate: (field: 'timeInterval' | 'status' | 'notes', value: string | DayStatus) => void
-  // Delegation context for validation
   delegations?: Array<{
     employee_id: string
     valid_from: string
@@ -43,6 +43,7 @@ export function TimesheetCell({
   isWeekend,
   isSelected,
   readOnly,
+  width, // Use the width prop
   onSelect,
   onUpdate,
   delegations = []
@@ -50,35 +51,48 @@ export function TimesheetCell({
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [editNotesValue, setEditNotesValue] = useState('')
   const [showValidation, setShowValidation] = useState(false)
+  
+  // Cell height is managed locally, as it's unique to each cell
+  const [cellHeight, setCellHeight] = useState<number>(() => {
+    const savedKey = `cell-height-${employeeId}-${date}`
+    const saved = localStorage.getItem(savedKey)
+    if (saved) {
+      try {
+        const parsedHeight = JSON.parse(saved);
+        if (typeof parsedHeight === 'number') {
+          return parsedHeight;
+        }
+      } catch (e) {
+        console.warn('Failed to parse saved cell height:', e)
+      }
+    }
+    return 44 // Default height
+  })
+  
+  const [isResizing, setIsResizing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
-  // ✅ FIXED: Ensure all values are properly defined with safe defaults
   const safeTimeInterval = dayData.timeInterval || ''
-  const safeStatus: DayStatus = dayData.status || 'alege' // ✅ FIXED: Default to 'alege' if undefined
+  const safeStatus: DayStatus = dayData.status || 'alege'
   const safeHours = dayData.hours || 0
   const safeNotes = dayData.notes || ''
   
-  // ✅ FIXED: Debug logging to catch undefined values
   useEffect(() => {
     if (!dayData.status) {
       console.warn('TimesheetCell: dayData.status is undefined for:', {
-        employeeId,
-        date,
-        dayData,
-        safeStatus
+        employeeId, date, dayData, safeStatus
       })
     }
   }, [dayData.status, employeeId, date, dayData, safeStatus])
   
-  // ✅ ENHANCED: Real-time validation with proper safe values
   const { 
     validationResult, 
     suggestedFix, 
     isDelegationRestricted,
-    getValidationSummary // ✅ Added for debugging
+    getValidationSummary
   } = useCellValidation({
     timeInterval: safeTimeInterval,
-    status: safeStatus, // ✅ FIXED: Use safe status
+    status: safeStatus,
     hours: safeHours,
     notes: safeNotes,
     isWeekend: isWeekend || false,
@@ -87,26 +101,51 @@ export function TimesheetCell({
     delegations
   })
   
-  // ✅ DEBUG: Log validation context when there are issues
   useEffect(() => {
     if (!validationResult.isValid && validationResult.type === 'error') {
       console.log('TimesheetCell validation failed:', {
         summary: getValidationSummary(),
         dayData,
-        safeValues: {
-          timeInterval: safeTimeInterval,
-          status: safeStatus,
-          hours: safeHours,
-          notes: safeNotes
-        }
+        safeValues: { timeInterval: safeTimeInterval, status: safeStatus, hours: safeHours, notes: safeNotes }
       })
     }
   }, [validationResult, getValidationSummary, dayData, safeTimeInterval, safeStatus, safeHours, safeNotes])
   
-  // Determine if cell should be read-only due to delegation
   const isEffectivelyReadOnly = readOnly || isDelegationRestricted
   
-  // Handle right-click for notes
+  // Resize functionality now only handles height
+  const handleResizeStart = (e: React.MouseEvent) => {
+    if (isEffectivelyReadOnly) return
+    e.preventDefault()
+    e.stopPropagation()
+    
+    setIsResizing(true)
+    const startY = e.clientY
+    const startHeight = cellHeight
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = moveEvent.clientY - startY
+      const newHeight = Math.max(44, Math.min(120, startHeight + deltaY))
+      setCellHeight(newHeight)
+    }
+    
+    const handleMouseUp = () => {
+      setIsResizing(false)
+      const savedKey = `cell-height-${employeeId}-${date}`
+      localStorage.setItem(savedKey, JSON.stringify(cellHeight))
+      
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'default'
+      document.body.style.userSelect = 'auto'
+    }
+    
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+  }
+  
   const handleRightClick = (e: React.MouseEvent) => {
     if (isEffectivelyReadOnly) return
     e.preventDefault()
@@ -116,19 +155,16 @@ export function TimesheetCell({
     onSelect()
   }
   
-  // Save notes edit
   const saveNotesEdit = () => {
     onUpdate('notes', editNotesValue)
     setIsEditingNotes(false)
   }
   
-  // Cancel notes edit
   const cancelNotesEdit = () => {
     setIsEditingNotes(false)
     setEditNotesValue('')
   }
   
-  // Handle keyboard for notes
   const handleNotesKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -138,7 +174,6 @@ export function TimesheetCell({
     }
   }
   
-  // Focus effects for notes
   useEffect(() => {
     if (isEditingNotes && textareaRef.current) {
       textareaRef.current.focus()
@@ -146,7 +181,6 @@ export function TimesheetCell({
     }
   }, [isEditingNotes])
   
-  // Auto-show validation on invalid state
   useEffect(() => {
     if (!validationResult.isValid && !isEffectivelyReadOnly) {
       setShowValidation(true)
@@ -156,30 +190,14 @@ export function TimesheetCell({
     }
   }, [validationResult.isValid, validationResult.type, isEffectivelyReadOnly])
   
-  // ✅ ENHANCED: Cell background with delegation consideration
   const getCellBg = () => {
-    // Delegation restricted cells get special styling
-    if (isDelegationRestricted) {
-      return 'bg-gray-100 border-gray-300'
-    }
-    
+    if (isDelegationRestricted) return 'bg-gray-100 border-gray-300'
     if (!validationResult.isValid) {
-      if (validationResult.type === 'error') {
-        return 'bg-red-50 border-red-300'
-      } else if (validationResult.type === 'warning') {
-        return 'bg-yellow-50 border-yellow-300'
-      }
+      if (validationResult.type === 'error') return 'bg-red-50 border-red-300'
+      else if (validationResult.type === 'warning') return 'bg-yellow-50 border-yellow-300'
     }
-    
-    if (isSelected) {
-      return 'bg-blue-100 border-blue-400'
-    }
-    
-    if (isWeekend) {
-      return 'bg-gray-50'
-    }
-    
-    // ✅ FIXED: Use safe status for switch
+    if (isSelected) return 'bg-blue-100 border-blue-400'
+    if (isWeekend) return 'bg-gray-50'
     switch (safeStatus) {
       case 'CO': return 'bg-red-50'
       case 'CM': return 'bg-yellow-50'
@@ -191,7 +209,6 @@ export function TimesheetCell({
   
   const hasNotes = safeNotes && safeNotes.trim()
   
-  // ✅ FIXED: Handle update functions with proper validation
   const handleTimeIntervalUpdate = (value: string) => {
     console.log('TimesheetCell: Updating timeInterval:', value)
     onUpdate('timeInterval', value)
@@ -201,37 +218,45 @@ export function TimesheetCell({
     console.log('TimesheetCell: Updating status:', value)
     onUpdate('status', value)
   }
-  
-  const handleNotesUpdate = (value: string) => {
-    console.log('TimesheetCell: Updating notes:', value)
-    onUpdate('notes', value)
+
+  const needsExpansion = () => {
+    return safeTimeInterval.length > 8 || safeNotes.length > 20 || 
+           (safeStatus !== 'alege' && safeTimeInterval && width <= 48)
   }
-  
+
   return (
     <div className="relative">
       <div
-        className={`w-12 border-r border-gray-300 cursor-pointer relative flex flex-col ${getCellBg()} ${
+        className={`border-r border-gray-300 cursor-pointer relative flex flex-col transition-all duration-200 ${getCellBg()} ${
           isSelected ? 'ring-2 ring-blue-400' : ''
-        } ${isDelegationRestricted ? 'opacity-60' : ''}`}
+        } ${isDelegationRestricted ? 'opacity-60' : ''} ${
+          isResizing ? 'shadow-lg' : ''
+        }`}
         onClick={onSelect}
         onContextMenu={handleRightClick}
-        style={{ minHeight: '44px' }}
+        style={{ 
+          width: `${width}px`,
+          minHeight: `${cellHeight}px`,
+          overflow: 'hidden'
+        }}
         title={isDelegationRestricted ? 'Employee delegated - editing restricted after delegation date' : undefined}
       >
         {/* Time Section */}
-        <div className="flex-1 flex items-center justify-center px-1">
-          <TimeIntervalInput
-            timeInterval={safeTimeInterval}
-            status={safeStatus}
-            hours={safeHours}
-            notes={safeNotes}
-            isWeekend={isWeekend}
-            readOnly={isEffectivelyReadOnly}
-            employeeId={employeeId}
-            cellDate={date}
-            onTimeIntervalChange={handleTimeIntervalUpdate} // ✅ FIXED: Use wrapper function
-            onFocus={onSelect}
-          />
+        <div className="flex-1 flex items-center justify-center px-1 overflow-hidden">
+          <div className="w-full min-w-0">
+            <TimeIntervalInput
+              timeInterval={safeTimeInterval}
+              status={safeStatus}
+              hours={safeHours}
+              notes={safeNotes}
+              isWeekend={isWeekend}
+              readOnly={isEffectivelyReadOnly}
+              employeeId={employeeId}
+              cellDate={date}
+              onTimeIntervalChange={handleTimeIntervalUpdate}
+              onFocus={onSelect}
+            />
+          </div>
         </div>
 
         {/* Status Section */}
@@ -243,9 +268,56 @@ export function TimesheetCell({
             notes={safeNotes}
             isWeekend={isWeekend}
             readOnly={isEffectivelyReadOnly}
-            onStatusChange={handleStatusUpdate} // ✅ FIXED: Use wrapper function
+            onStatusChange={handleStatusUpdate}
           />
         </div>
+
+        {/* Expanded notes display for larger cells */}
+        {cellHeight > 60 && hasNotes && (
+          <div className="px-1 pb-1">
+            <div className="text-xs text-gray-600 bg-gray-50 rounded p-1 break-words" 
+                 style={{ fontSize: '10px', lineHeight: '1.2' }}>
+              {safeNotes.length > 50 ? `${safeNotes.substring(0, 50)}...` : safeNotes}
+            </div>
+          </div>
+        )}
+
+        {/* Resize Handles - only for height */}
+        {isSelected && !isEffectivelyReadOnly && (
+          <>
+            <div
+              className="absolute left-0 right-0 bottom-0 h-1 bg-transparent hover:bg-blue-500 cursor-ns-resize z-20 group"
+              onMouseDown={handleResizeStart}
+              title="Drag to resize height"
+            >
+              <div className="w-full h-full opacity-0 group-hover:opacity-50 bg-blue-500 transition-opacity" />
+            </div>
+            
+            <div
+              className="absolute right-0 bottom-0 w-3 h-3 bg-blue-400 hover:bg-blue-600 cursor-ns-resize z-30 opacity-60 hover:opacity-80 rounded-tl"
+              onMouseDown={handleResizeStart}
+              title="Drag to resize height"
+            />
+          </>
+        )}
+
+        {/* Quick expand button for cramped content */}
+        {needsExpansion() && isSelected && !isEffectivelyReadOnly && 
+         width <= 48 && cellHeight <= 44 && (
+          <button
+            className="absolute top-1 right-1 w-4 h-4 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs flex items-center justify-center z-10 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              // This button now only affects height. You could also have it affect width by calling a prop.
+              setCellHeight(70); 
+              const savedKey = `cell-height-${employeeId}-${date}`
+              localStorage.setItem(savedKey, JSON.stringify(70))
+            }}
+            title="Auto-expand cell"
+          >
+            ⤢
+          </button>
+        )}
 
         {/* Validation Indicator */}
         {!validationResult.isValid && (
@@ -263,10 +335,10 @@ export function TimesheetCell({
           </div>
         )}
 
-        {/* Notes Indicator */}
-        {hasNotes && (
+        {/* Notes Indicator - only show for smaller cells */}
+        {hasNotes && cellHeight <= 60 && (
           <div 
-            className="absolute bottom-1 right-1 cursor-pointer"
+            className="absolute bottom-1 right-1 cursor-pointer z-10"
             onClick={(e) => {
               e.stopPropagation()
               if (!isEffectivelyReadOnly) {
@@ -274,16 +346,19 @@ export function TimesheetCell({
               }
             }}
           >
-            <div className={`w-1.5 h-1.5 rounded-full ${
+            <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
               isDelegationRestricted ? 'bg-orange-300' : 'bg-orange-400 hover:bg-orange-500'
             }`} />
           </div>
         )}
       </div>
 
-      {/* Notes Edit Popup - only if not delegation restricted */}
+      {/* Notes Edit Popup */}
       {isEditingNotes && !isDelegationRestricted && (
-        <div className="absolute top-full left-0 z-50 bg-white border rounded shadow-lg p-2 w-36">
+        <div 
+          className="absolute top-full left-0 z-50 bg-white border rounded shadow-lg p-2" 
+          style={{ width: Math.max(144, width + 20) }}
+        >
           <textarea
             ref={textareaRef}
             value={editNotesValue}

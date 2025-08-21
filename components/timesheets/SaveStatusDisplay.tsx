@@ -43,7 +43,7 @@ export function SaveStatusDisplay({
           }`}>
             {hasErrors && isSuccess ? 'Partially Saved' : 
              isSuccess ? (result.isUpdate ? 'Timesheet Updated' : 'Timesheet Created') : 
-             'Save Failed'}
+             'Salvarea a eșuat'}
           </h3>
         </div>
         
@@ -67,16 +67,16 @@ export function SaveStatusDisplay({
           <div className="text-sm space-y-1">
             <p className={hasErrors ? 'text-yellow-700' : 'text-green-700'}>
               <span className="font-medium">
-                {result.isUpdate ? 'Updated' : 'Created'} timesheet
-              </span> for <span className="font-medium">{result.employeeCount}</span> employee{result.employeeCount !== 1 ? 's' : ''}
+                {result.isUpdate ? 'Updated' : 'Created'} pontaj
+              </span> pentru <span className="font-medium">{result.employeeCount}</span> angajat{result.employeeCount !== 1 ? 's' : ''}
             </p>
             
             <div className="text-xs text-gray-600 space-y-1">
-              <p>• Total hours: <span className="font-medium text-blue-600">{result.totalHours}h</span></p>
-              <p>• Timesheet ID: <span className="font-mono text-xs">{result.timesheetId}</span></p>
-              <p>• Session: <span className="font-mono text-xs">{result.sessionId.slice(-12)}</span></p>
+              <p>• Total ore: <span className="font-medium text-blue-600">{result.totalHours}h</span></p>
+              <p>• ID pontaj: <span className="font-mono text-xs">{result.timesheetId}</span></p>
+              <p>• Sesiune: <span className="font-mono text-xs">{result.sessionId.slice(-12)}</span></p>
               {result.isUpdate && (
-                <p>• <span className="text-blue-600">Updated existing timesheet</span></p>
+                <p>• <span className="text-blue-600">Pontajul existent a fost actualizat</span></p>
               )}
             </div>
           </div>
@@ -87,7 +87,7 @@ export function SaveStatusDisplay({
       {hasErrors && (
         <div className="mb-3">
           <h4 className="text-sm font-medium text-red-800 mb-2">
-            ⚠ Employee Errors ({result.errors.length})
+            ⚠ Erori angajați ({result.errors.length})
           </h4>
           <div className="space-y-2">
             {result.errors.map((error, index) => (
@@ -111,13 +111,13 @@ export function SaveStatusDisplay({
       {!isSuccess && (
         <div className="p-3 rounded-md bg-red-50 border border-red-200">
           <div className="text-sm text-red-700">
-            <p className="font-medium">Failed to save timesheet</p>
+            <p className="font-medium">Pontajul nu a putut fi salvat</p>
             <p className="mt-1">
-              No timesheet was created. Please check the data and try again.
+              Niciun pontaj nu a fost creat. Vă rugăm să verificați datele și să încercați din nou.
             </p>
             {hasErrors && (
               <p className="mt-2 text-xs">
-                {result.errors.length} employee{result.errors.length !== 1 ? 's' : ''} had validation errors.
+                {result.errors.length} angajat{result.errors.length !== 1 ? 'i' : ''} au avut erori de validare.
               </p>
             )}
           </div>
@@ -141,7 +141,7 @@ export function SaveStatusDisplay({
                     console.log('Show error details:', result.errors)
                   }}
                 >
-                  View Details
+                  Vezi detalii
                 </Button>
               )}
               <Button
@@ -149,7 +149,7 @@ export function SaveStatusDisplay({
                 size="sm"
                 onClick={onDismiss}
               >
-                Continue
+                Continuă
               </Button>
             </div>
           </div>

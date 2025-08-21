@@ -259,7 +259,7 @@ export class TimesheetValidationRules {
     if (hasWorkingHours && isFullDayAbsence) {
       return {
         isValid: false,
-        message: `Cannot have working hours with ${absenceType.name}`,
+        message: `Nu poți avea ore de lucru împreună cu ${absenceType.name}`,
         type: 'error'
       }
     }
@@ -268,7 +268,7 @@ export class TimesheetValidationRules {
     if (!hasWorkingHours && absenceType && absenceType.requires_hours && status !== 'alege') {
       return {
         isValid: false,
-        message: `${absenceType.name} requires working hours to be specified`,
+        message: `${absenceType.name} necesită ca orele de lucru să fie adăugate`,
         type: 'warning'
       }
     }
@@ -580,7 +580,7 @@ export class TimesheetValidationRules {
       if (error.includes('requires working hours')) {
         return {
           action: 'add_hours',
-          description: 'Add working hours or change to full-day absence'
+          description: 'Adaugă ore de lucru sau schimbă în absență de o zi întreagă'
         }
       }
       
