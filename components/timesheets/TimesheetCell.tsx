@@ -3,8 +3,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { type DayStatus } from '@/types/timesheet-grid'
-import { TimeIntervalInput } from './cells/TimeIntervalInput'
-import { StatusSelector } from './cells/StatusSelector'
+import { TimeIntervalInput } from '@/components/timesheets/cells/TimeIntervalInput'
+import { StatusSelector } from '@/components/timesheets/cells/StatusSelector'
 import { CellValidationIndicator } from './validation/CellValidationIndicator'
 import { ValidationMessage } from './validation/ValidationMessage'
 import { useCellValidation } from '@/hooks/validation/useCellValidation'
@@ -24,6 +24,7 @@ interface TimesheetCellProps {
   dayData: DayData
   isWeekend: boolean
   isSelected: boolean
+  isHoliday: boolean // ✅ ACCEPT isHoliday PROP
   readOnly: boolean
   width: number // New prop for width, controlled by parent
   onSelect: () => void
@@ -42,6 +43,7 @@ export function TimesheetCell({
   dayData,
   isWeekend,
   isSelected,
+  isHoliday, // ✅ Use prop
   readOnly,
   width, // Use the width prop
   onSelect,
@@ -191,6 +193,8 @@ export function TimesheetCell({
   }, [validationResult.isValid, validationResult.type, isEffectivelyReadOnly])
   
   const getCellBg = () => {
+    // ✅ SET HOLIDAY BACKGROUND FIRST
+    if (isHoliday) return 'bg-green-50'
     if (isDelegationRestricted) return 'bg-gray-100 border-gray-300'
     if (!validationResult.isValid) {
       if (validationResult.type === 'error') return 'bg-red-50 border-red-300'

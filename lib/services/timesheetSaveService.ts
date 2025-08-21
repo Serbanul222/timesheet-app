@@ -1,20 +1,23 @@
-// lib/services/timesheetSaveService.ts - COMPLETE FILE with validation
+// lib/services/timesheetSaveService.ts - COMPLETE FILE with original logic restored and targeted date fixes
 import { supabase } from '@/lib/supabase/client';
 import { TimesheetGridData } from '@/types/timesheet-grid';
-import { calculateTotalHours } from '@/lib/timesheet-utils';
+import { calculateTotalHours, generateDateRange } from '@/lib/timesheet-utils';
 import { SaveOptions, SaveResult } from '@/types/database';
 import { TimesheetValidationRules } from '@/lib/validation/timesheetValidationRules';
 import { AbsenceTypesService } from '@/lib/services/absenceTypesService';
 
-// ✅ Re-export the types so they can be imported from this service
+// ✅ THE FIX: Import the necessary timezone-safe date formatting functions.
+import { formatMonthYearRomanian, formatDateForInput } from '@/lib/utils/dateFormatting';
+
+// Re-export the types so they can be imported from this service
 export type { SaveOptions, SaveResult } from '@/types/database';
 
-// ✅ DEBUG: Log that the enhanced service is being loaded
+// DEBUG: Log that the enhanced service is being loaded
 console.log('🔍 Enhanced TimesheetSaveService loaded with validation support');
 
 export class TimesheetSaveService {
   
-  // ✅ ENHANCED: Save method with validation
+  // ENHANCED: Save method with validation
   public static async saveTimesheetGrid(
     gridData: TimesheetGridData, 
     options: SaveOptions,
@@ -27,7 +30,7 @@ export class TimesheetSaveService {
         storeId: gridData.storeId
       });
 
-      // ✅ STEP 1: Run validation before saving (unless explicitly skipped)
+      // STEP 1: Run validation before saving (unless explicitly skipped)
       if (!skipValidation) {
         console.log('🔍 SaveService: Running validation...');
         const validationResult = await this._validateGridBeforeSave(gridData);
@@ -50,10 +53,16 @@ export class TimesheetSaveService {
         console.log('⚠️ SaveService: Validation skipped');
       }
 
-      // ✅ STEP 2: Transform and save (your existing logic)
+      // STEP 2: Transform and save
       console.log('🔍 SaveService: Transforming data for database...');
       const gridForDatabase = this._transformGridForDatabase(gridData, options);
-      const existingGrid = await this._findExistingGrid(gridData.storeId!, gridData.startDate, gridData.endDate);
+      
+      // ✅ THE FIX: Use the sanitized dates from gridForDatabase to find the existing grid.
+      const existingGrid = await this._findExistingGrid(
+          gridForDatabase.store_id!, 
+          gridForDatabase.period_start, 
+          gridForDatabase.period_end
+      );
 
       let dbResult: { gridId: string; isUpdate: boolean };
 
@@ -73,14 +82,14 @@ export class TimesheetSaveService {
     }
   }
 
-  // ✅ VALIDATION: Validate grid before saving
+  // ✅ RESTORED: Your original, detailed validation logic is fully restored.
   private static async _validateGridBeforeSave(gridData: TimesheetGridData) {
     try {
       console.log('🔍 Validation: Loading absence types...');
       const absenceTypes = await AbsenceTypesService.getActiveAbsenceTypes();
       console.log('🔍 Validation: Loaded absence types:', absenceTypes.length);
 
-      // ✅ ENHANCED: Check for ALL full-day absences + hours conflicts
+      // ENHANCED: Check for ALL full-day absences + hours conflicts
       const errors: any[] = [];
       
       // Create a map of status codes to their requires_hours property for fast lookup
@@ -108,56 +117,41 @@ export class TimesheetSaveService {
             
             if (isFullDayAbsence && hasWorkingHours) {
               console.log('❌ Validation: Found full-day absence with hours conflict:', {
-                employee: entry.employeeName,
-                date: date,
-                status: dayData.status,
-                absenceTypeName: absenceType.name,
-                hours: dayData.hours,
-                timeInterval: dayData.timeInterval,
-                requiresHours: absenceType.requires_hours
+                employee: entry.employeeName, date: date, status: dayData.status,
+                absenceTypeName: absenceType.name, hours: dayData.hours,
+                timeInterval: dayData.timeInterval, requiresHours: absenceType.requires_hours
               });
               
               errors.push({
-                employeeId: entry.employeeId,
-                employeeName: entry.employeeName,
-                date: date,
+                employeeId: entry.employeeId, employeeName: entry.employeeName, date: date,
                 error: `Nu poți avea ore de lucru împreună cu ${absenceType.name}`
               });
             }
             
-            // ✅ ALSO CHECK: Partial absence without hours
+            // ALSO CHECK: Partial absence without hours
             const isPartialAbsence = absenceType.requires_hours;
             const hasNoWorkingHours = dayData.hours === 0;
             
             if (isPartialAbsence && hasNoWorkingHours) {
               console.log('❌ Validation: Found partial absence without hours:', {
-                employee: entry.employeeName,
-                date: date,
-                status: dayData.status,
-                absenceTypeName: absenceType.name,
-                hours: dayData.hours,
+                employee: entry.employeeName, date: date, status: dayData.status,
+                absenceTypeName: absenceType.name, hours: dayData.hours,
                 requiresHours: absenceType.requires_hours
               });
               
               errors.push({
-                employeeId: entry.employeeId,
-                employeeName: entry.employeeName,
-                date: date,
+                employeeId: entry.employeeId, employeeName: entry.employeeName, date: date,
                 error: `${absenceType.name} necesită ca orele de lucru să fie adăugate`
               });
             }
           } else if (dayData.status !== 'alege') {
             // Unknown status code
             console.log('⚠️ Validation: Unknown absence type:', {
-              employee: entry.employeeName,
-              date: date,
-              status: dayData.status
+              employee: entry.employeeName, date: date, status: dayData.status
             });
             
             errors.push({
-              employeeId: entry.employeeId,
-              employeeName: entry.employeeName,
-              date: date,
+              employeeId: entry.employeeId, employeeName: entry.employeeName, date: date,
               error: `Unknown absence type: ${dayData.status}`
             });
           }
@@ -167,37 +161,18 @@ export class TimesheetSaveService {
       if (errors.length > 0) {
         console.log('❌ Validation: Found validation errors, blocking save:', errors);
         return {
-          isValid: false,
-          errors: errors,
-          warnings: [],
-          setupErrors: []
+          isValid: false, errors: errors, warnings: [], setupErrors: []
         };
       }
       
       console.log('✅ Validation: No absence+hours conflicts found');
       
-      // Create date range for additional validation
-      const startDate = new Date(gridData.startDate);
-      const endDate = new Date(gridData.endDate);
-      const dateRange: Date[] = [];
-      
-      for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-        dateRange.push(new Date(date));
-      }
+      const dateRange = generateDateRange(new Date(gridData.startDate), new Date(gridData.endDate));
 
       console.log('🔍 Validation: Running comprehensive grid validation...');
       // Run comprehensive grid validation
       const validationResult = TimesheetValidationRules.validateGrid(
-        gridData.entries,
-        dateRange,
-        absenceTypes,
-        {
-          storeId: gridData.storeId,
-          zoneId: gridData.zoneId,
-          entries: gridData.entries,
-          startDate: gridData.startDate,
-          endDate: gridData.endDate
-        }
+        gridData.entries, dateRange, absenceTypes, gridData
       );
 
       console.log('🔍 Validation: Comprehensive validation completed:', validationResult);
@@ -207,9 +182,7 @@ export class TimesheetSaveService {
       return {
         isValid: false,
         errors: [{
-          employeeId: 'system',
-          employeeName: 'Validation System',
-          date: 'N/A',
+          employeeId: 'system', employeeName: 'Validation System', date: 'N/A',
           error: 'Failed to run validation checks: ' + (error instanceof Error ? error.message : 'Unknown error')
         }],
         warnings: [],
@@ -218,12 +191,8 @@ export class TimesheetSaveService {
     }
   }
 
-  // ✅ BUILD: Validation error result
-  private static _buildValidationErrorResult(
-    gridData: TimesheetGridData, 
-    validationResult: any, 
-    sessionId: string
-  ): SaveResult {
+  // ✅ RESTORED: Your original error building logic.
+  private static _buildValidationErrorResult(gridData: TimesheetGridData, validationResult: any, sessionId: string): SaveResult {
     const allErrors = [
       ...validationResult.errors.map((e: any) => `${e.employeeName} (${e.date}): ${e.error}`),
       ...validationResult.setupErrors.map((e: any) => `Setup: ${e.error}`)
@@ -232,86 +201,62 @@ export class TimesheetSaveService {
     console.log('🔍 SaveService: Building validation error result:', allErrors);
 
     return {
-      success: false,
-      savedCount: 0,
-      failedCount: gridData.entries.length,
+      success: false, savedCount: 0, failedCount: gridData.entries.length,
       errors: validationResult.errors.map((error: any) => ({
-        employeeId: error.employeeId,
-        employeeName: error.employeeName,
-        error: error.error
+        employeeId: error.employeeId, employeeName: error.employeeName, error: error.error
       })),
-      savedTimesheets: [],
-      sessionId: sessionId,
-      warnings: allErrors
+      savedTimesheets: [], sessionId: sessionId, warnings: allErrors
     };
   }
 
-  // ✅ EXISTING: Your original methods (unchanged)
   private static _transformGridForDatabase(gridData: TimesheetGridData, options: SaveOptions) {
-    const totalHours = gridData.entries.reduce((acc, entry) => acc + calculateTotalHours(entry.days), 0);
-    const employeeCount = gridData.entries.length;
-    const gridTitle = this._generateGridTitle(gridData);
-    const dailyEntries = this._createDailyEntriesJSON(gridData);
+    // ✅ THE FIX: Ensure dates are always in the clean 'YYYY-MM-DD' format before saving.
+    const period_start = formatDateForInput(gridData.startDate);
+    const period_end = formatDateForInput(gridData.endDate);
 
     return {
       store_id: gridData.storeId,
       zone_id: gridData.zoneId,
-      period_start: gridData.startDate,
-      period_end: gridData.endDate,
-      total_hours: totalHours,
-      employee_count: employeeCount,
-      daily_entries: dailyEntries,
-      grid_title: gridTitle,
+      period_start: period_start,
+      period_end: period_end,
+      total_hours: gridData.entries.reduce((acc, entry) => acc + calculateTotalHours(entry.days), 0),
+      employee_count: gridData.entries.length,
+      daily_entries: this._createDailyEntriesJSON(gridData),
+      grid_title: this._generateGridTitle(gridData),
       notes: `Grid session: ${options.gridSessionId}`,
       created_by: options.createdBy,
     };
   }
 
+  // ✅ RESTORED: Your original JSON creation logic.
   private static _createDailyEntriesJSON(gridData: TimesheetGridData): any {
     const employeeEntries: { [employeeId: string]: any } = {};
-
     gridData.entries.forEach(entry => {
       employeeEntries[entry.employeeId] = {
-        name: entry.employeeName,
-        position: entry.position,
-        days: {},
+        name: entry.employeeName, position: entry.position, days: {},
       };
-
       for (const date in entry.days) {
         const dayData = entry.days[date];
-
         const hasData = dayData && (
           dayData.hours > 0 ||
           (dayData.status && dayData.status !== 'alege') ||
           (dayData.notes && dayData.notes.trim() !== '') ||
           (dayData.timeInterval && dayData.timeInterval.trim() !== '')
         );
-
         if (hasData) {
           employeeEntries[entry.employeeId].days[date] = {
-            timeInterval: dayData.timeInterval || '',
-            startTime: dayData.startTime || '',
-            endTime: dayData.endTime || '',
-            hours: dayData.hours,
-            status: dayData.status,
-            notes: dayData.notes || '',
+            timeInterval: dayData.timeInterval || '', startTime: dayData.startTime || '',
+            endTime: dayData.endTime || '', hours: dayData.hours,
+            status: dayData.status, notes: dayData.notes || '',
           };
         }
       }
     });
-
     return employeeEntries;
   }
 
   private static async _findExistingGrid(storeId: string, startDate: string, endDate: string) {
-    const { data, error } = await supabase
-      .from('timesheets')
-      .select('id')
-      .eq('store_id', storeId)
-      .eq('period_start', startDate)
-      .eq('period_end', endDate)
-      .maybeSingle();
-
+    const { data, error } = await supabase.from('timesheets').select('id').eq('store_id', storeId).eq('period_start', startDate).eq('period_end', endDate).maybeSingle();
     if (error) {
       console.error('Error finding existing grid:', error.message);
       return null;
@@ -331,8 +276,13 @@ export class TimesheetSaveService {
     return { gridId: data.id, isUpdate: true };
   }
   
-  private static _generateGridTitle = (gridData: TimesheetGridData) => 
-    `${new Date(gridData.startDate).toLocaleString('default', { month: 'long', year: 'numeric' })} - ${gridData.entries.length} employees`;
+  // ✅ THE FIX: Replace the faulty date logic with your robust, timezone-safe formatting utility.
+  private static _generateGridTitle = (gridData: TimesheetGridData) => {
+    const monthYear = formatMonthYearRomanian(gridData.startDate);
+    const title = `${monthYear} - ${gridData.entries.length} angajati`;
+    // Capitalize first letter for a clean title
+    return title.charAt(0).toUpperCase() + title.slice(1);
+  }
   
   private static _buildSuccessResult = (gridData: TimesheetGridData, dbResult: { gridId: string, isUpdate: boolean }, options: SaveOptions): SaveResult => ({
     success: true,

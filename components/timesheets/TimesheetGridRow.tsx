@@ -4,8 +4,9 @@
 import { TimesheetCell } from './TimesheetCell'
 import { type TimesheetEntry, type DayStatus } from '@/types/timesheet-grid'
 import { formatHours } from '@/lib/utils'
-import { formatDateLocal } from '@/lib/timesheet-utils'
+import { formatDateLocal, formatDateForDB } from '@/lib/timesheet-utils' // ✅ IMPORT formatDateForDB
 import { type ColumnWidths } from './TimesheetGrid'
+import { type RomanianHoliday } from '@/lib/services/romanianHolidays'; // ✅ IMPORT TYPE
 
 interface TimesheetGridRowProps {
   entry: TimesheetEntry
@@ -30,6 +31,7 @@ interface TimesheetGridRowProps {
     from_store_id: string
   }>
   columnWidths: ColumnWidths
+  holidays: Map<string, RomanianHoliday> // ✅ ACCEPT HOLIDAYS
 }
 
 export function TimesheetGridRow({
@@ -41,7 +43,8 @@ export function TimesheetGridRow({
   onCellSelect,
   onUpdateCell,
   delegations = [],
-  columnWidths
+  columnWidths,
+  holidays
 }: TimesheetGridRowProps) {
   return (
     <div className="timesheet-grid-row flex border-b border-gray-200 hover:bg-gray-50">
@@ -74,6 +77,7 @@ export function TimesheetGridRow({
       <div className="flex">
         {dateRange.map((date) => {
           const dateKey = formatDateLocal(date)
+          const dbDateKey = formatDateForDB(date); // ✅ Key for holiday check
           
           const dayData = entry.days[dateKey] || {
             timeInterval: '',
@@ -87,6 +91,7 @@ export function TimesheetGridRow({
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           const isSelected = selectedCell?.employeeId === entry.employeeId && 
                            selectedCell?.date === dateKey
+          const isHoliday = holidays.has(dbDateKey); // ✅ CHECK IF THE DAY IS A HOLIDAY
 
           return (
             <TimesheetCell
@@ -96,6 +101,7 @@ export function TimesheetGridRow({
               dayData={dayData}
               isWeekend={isWeekend}
               isSelected={isSelected}
+              isHoliday={isHoliday} // ✅ PASS TO CELL
               readOnly={readOnly}
               width={columnWidths.dateColumns[dateKey] || 48}
               onSelect={() => onCellSelect(entry.employeeId, dateKey)}

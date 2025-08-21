@@ -11,6 +11,7 @@ import { generateDateRange, calculateTotalHours, formatDateLocal } from '@/lib/t
 import { useTimesheetSave } from '@/hooks/timesheet/useTimesheetSave'
 import { useGridValidation } from '@/hooks/validation/useGridValidation'
 import { TimesheetCreator } from './TimesheetCreator'
+import { useRomanianHolidays } from '@/lib/services/romanianHolidays'
 
 /**
  * Defines the shape for the shared column width state.
@@ -100,6 +101,8 @@ export function TimesheetGrid({
 
   const { startDate, endDate, entries } = data
   
+  const { holidays } = useRomanianHolidays(startDate, endDate);
+
   const dateRange = useMemo(() => {
     return generateDateRange(new Date(startDate), new Date(endDate))
   }, [startDate, endDate])
@@ -292,6 +295,7 @@ export function TimesheetGrid({
                 dailyTotals={dailyTotals}
                 columnWidths={columnWidths}
                 onColumnResize={handleColumnResize}
+                holidays={holidays}
               />
               <div className="timesheet-grid-body">
                 {data.entries.map((entry) => (
@@ -305,6 +309,7 @@ export function TimesheetGrid({
                     onCellSelect={handleCellSelect} 
                     onUpdateCell={updateCell}
                     columnWidths={columnWidths}
+                    holidays={holidays} // ✅ PASS HOLIDAYS TO THE ROW
                   />
                 ))}
               </div>
