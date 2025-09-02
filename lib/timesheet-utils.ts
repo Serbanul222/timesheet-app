@@ -1,6 +1,8 @@
 // lib/timesheet-utils.ts - Updated with European date formatting and Romanian day names
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isWeekend as isFnsWeekend } from 'date-fns'
-import { type TimesheetGridData } from '@/types/timesheet-grid'
+import { DayData, type TimesheetGridData } from '@/types/timesheet-grid'
+import { AbsenceType } from '@/lib/services/absenceTypesService'
+import { AbsenceHoursRules } from '@/lib/validation/absenceHoursRules'
 
 // Romanian day names mapping
 const ROMANIAN_DAYS = {
@@ -13,42 +15,30 @@ const ROMANIAN_DAYS = {
   6: 'Sâm'     // Sâmbătă (Saturday)
 } as const
 
-/**
- * ✅ UPDATED: Format date for local display (DD/MM/YYYY format)
- */
 export function formatDateLocal(date: Date): string {
-  return format(date, 'dd/MM/yyyy')
+  return format(date, 'yyyy-MM-dd')
 }
 
 export function generateDefaultTimesheetData(): TimesheetGridData {
   const period = getDefaultPeriod();
-  
-  // Get the current time as an ISO string
   const now = new Date().toISOString();
 
   return {
-    id: '', // No ID for a new timesheet
-    storeId: '', // No store selected by default
+    id: '',
+    storeId: '',
     zoneId: '',
     startDate: period.startDate.toISOString(),
     endDate: period.endDate.toISOString(),
     entries: [],
-    createdAt: now, // ✅ FIX: Added required property
-    updatedAt: now, // ✅ FIX: Added required property
-    // createdBy can be omitted as it's optional
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
-/**
- * ✅ UPDATED: Format date for database storage (YYYY-MM-DD format)
- */
 export function formatDateForDB(date: Date): string {
   return format(date, 'yyyy-MM-dd')
 }
 
-/**
- * ✅ UPDATED: Generate date range for timesheet grid
- */
 export function generateDateRange(startDate: Date, endDate: Date): Date[] {
   try {
     return eachDayOfInterval({ start: startDate, end: endDate })
@@ -58,9 +48,6 @@ export function generateDateRange(startDate: Date, endDate: Date): Date[] {
   }
 }
 
-/**
- * ✅ UPDATED: Get default period with proper European formatting
- */
 export function getDefaultPeriod() {
   const now = new Date()
   const start = startOfMonth(now)
@@ -69,20 +56,14 @@ export function getDefaultPeriod() {
   return {
     startDate: start,
     endDate: end,
-    // For display purposes (European format)
-    startDateDisplay: formatDateLocal(start),
-    endDateDisplay: formatDateLocal(end),
-    // For HTML inputs (ISO format)
+    startDateDisplay: format(start, 'dd/MM/yyyy'),
+    endDateDisplay: format(end, 'dd/MM/yyyy'),
     startDateInput: format(start, 'yyyy-MM-dd'),
     endDateInput: format(end, 'yyyy-MM-dd'),
-    // Month range display (1-30/31 format)
     monthDisplay: `1-${end.getDate()} ${format(start, 'MMMM yyyy')}`
   }
 }
 
-/**
- * ✅ UPDATED: Validate timesheet period
- */
 export function validateTimesheetPeriod(startDate: Date, endDate: Date): string | null {
   if (startDate >= endDate) {
     return 'Start date must be before end date'
@@ -103,27 +84,25 @@ export function validateTimesheetPeriod(startDate: Date, endDate: Date): string 
 }
 
 /**
- * Calculate total hours from timesheet entry days
+ * NEW: Calculate total hours using centralized absence rules
+ * Full-day absences automatically contribute 8 hours to totals
  */
-export function calculateTotalHours(days: Record<string, any>): number {
-  return Object.values(days).reduce((total, day) => {
-    return total + (day?.hours || 0)
-  }, 0)
+export function calculateTotalHours(
+  days: Record<string, DayData>,
+  absenceTypes: AbsenceType[] = []
+): number {
+  if (!days) return 0
+
+  return AbsenceHoursRules.calculateTotalEffectiveHours(days, absenceTypes)
 }
 
-/**
- * ✅ NEW: Get period display string for UI components
- */
 export function getPeriodDisplayString(startDate: Date | string, endDate: Date | string): string {
   const start = typeof startDate === 'string' ? new Date(startDate) : startDate
   const end = typeof endDate === 'string' ? new Date(endDate) : endDate
   
-  return `${formatDateLocal(start)} - ${formatDateLocal(end)}`
+  return `${format(start, 'dd/MM/yyyy')} - ${format(end, 'dd/MM/yyyy')}`
 }
 
-/**
- * ✅ NEW: Get month range display (1-30/31 format)
- */
 export function getMonthRangeDisplay(date: Date | string): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date
   const year = dateObj.getFullYear()
@@ -135,16 +114,10 @@ export function getMonthRangeDisplay(date: Date | string): string {
   return `1-${lastDay.getDate()} ${format(firstDay, 'MMMM yyyy')}`
 }
 
-/**
- * Check if date is weekend
- */
 export function isWeekend(date: Date): boolean {
   return isFnsWeekend(date)
 }
 
-/**
- * Get next working day
- */
 export function getNextWorkingDay(date: Date): Date {
   let nextDay = addDays(date, 1)
   while (isWeekend(nextDay)) {
@@ -153,9 +126,6 @@ export function getNextWorkingDay(date: Date): Date {
   return nextDay
 }
 
-/**
- * ✅ UPDATED: Parse time interval and return hours
- */
 export function parseTimeInterval(interval: string): number {
   if (!interval || !interval.trim()) return 0
   
@@ -177,14 +147,11 @@ export function parseTimeInterval(interval: string): number {
   const endMinutes = timeToMinutes(endTime)
   
   let diffMinutes = endMinutes - startMinutes
-  if (diffMinutes < 0) diffMinutes += 24 * 60 // Handle overnight shifts
+  if (diffMinutes < 0) diffMinutes += 24 * 60
   
   return Math.round((diffMinutes / 60) * 100) / 100
 }
 
-/**
- * ✅ UPDATED: Format time for display in grid headers with Romanian day names
- */
 export function formatTimeForGrid(date: Date): {
   dayName: string
   dayNumber: string
@@ -195,15 +162,12 @@ export function formatTimeForGrid(date: Date): {
   
   return {
     dayName: ROMANIAN_DAYS[dayOfWeek as keyof typeof ROMANIAN_DAYS],
-    dayNumber: format(date, 'd'), // 1, 2, 3, etc.
+    dayNumber: format(date, 'd'),
     isWeekend: isWeekend(date),
-    fullDate: formatDateLocal(date) // DD/MM/YYYY
+    fullDate: format(date, 'dd/MM/yyyy')
   }
 }
 
-/**
- * ✅ NEW: Get days count in period
- */
 export function getDaysCount(startDate: Date | string, endDate: Date | string): number {
   const start = typeof startDate === 'string' ? new Date(startDate) : startDate
   const end = typeof endDate === 'string' ? new Date(endDate) : endDate
@@ -212,9 +176,6 @@ export function getDaysCount(startDate: Date | string, endDate: Date | string): 
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
 }
 
-/**
- * ✅ NEW: Get Romanian day name for a given date
- */
 export function getRomanianDayName(date: Date, abbreviated: boolean = true): string {
   const dayOfWeek = date.getDay()
   
@@ -222,7 +183,6 @@ export function getRomanianDayName(date: Date, abbreviated: boolean = true): str
     return ROMANIAN_DAYS[dayOfWeek as keyof typeof ROMANIAN_DAYS]
   }
   
-  // Full Romanian day names
   const fullDayNames = {
     0: 'Duminică',
     1: 'Luni',
@@ -236,9 +196,6 @@ export function getRomanianDayName(date: Date, abbreviated: boolean = true): str
   return fullDayNames[dayOfWeek as keyof typeof fullDayNames]
 }
 
-/**
- * ✅ NEW: Helper function to get all Romanian day names
- */
 export function getAllRomanianDays(abbreviated: boolean = true) {
   if (abbreviated) {
     return Object.values(ROMANIAN_DAYS)

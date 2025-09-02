@@ -1,5 +1,5 @@
 // lib/validation/timesheetValidationRules.ts
-import { parseTimeInterval } from '@/lib/timesheet-utils' // ✅ FIXED: Use the correct import
+import { parseTimeInterval } from '@/lib/timesheet-utils'
 import { type DayStatus } from '@/types/timesheet-grid'
 import { type AbsenceType } from '@/lib/services/absenceTypesService'
 
@@ -80,22 +80,9 @@ export interface GridValidationResult {
   setupErrors: SetupError[]
 }
 
-/**
- * Core validation rules for timesheet cells and grids
- * 
- * Think of this like a comprehensive input validator in Java Spring Boot - 
- * it validates both individual fields and the entire form before submission.
- */
 export class TimesheetValidationRules {
   
-  /**
-   * Validate a single cell with comprehensive rules including delegation
-   * 
-   * This is like validating a single form field - we run all applicable
-   * validation rules and return the first failure or success.
-   */
   static validateCell(context: CellValidationContext): ValidationResult {
-    // Ensure we have valid context
     if (!context) {
       return {
         isValid: false,
@@ -113,7 +100,6 @@ export class TimesheetValidationRules {
       isDelegationRestricted = false 
     } = context
     
-    // Rule 0: Check delegation restrictions first (highest priority)
     if (isDelegationRestricted) {
       const delegationResult = this.validateDelegationRestriction(context)
       if (!delegationResult.isValid) {
@@ -121,10 +107,8 @@ export class TimesheetValidationRules {
       }
     }
     
-    // Run all validation rules in order of importance
     const validationRules = [
       this.validateTimeFormat,
-      this.validateHoursAbsenceConflict,
       this.validatePartialHours,
       this.validateStatusTransition,
       this.validateWeekendWork
@@ -149,25 +133,18 @@ export class TimesheetValidationRules {
     return { isValid: true }
   }
 
-  /**
-   * Rule 0: Validate delegation restrictions
-   * 
-   * Like checking permissions in a security layer - if user doesn't have
-   * permission to edit, we block the action regardless of data validity.
-   */
   private static validateDelegationRestriction(context: CellValidationContext): ValidationResult {
-    const { timeInterval = '', hours = 0, status, isDelegationRestricted } = context
+    const { isDelegationRestricted } = context
+    const safeTimeInterval = String(context.timeInterval || '').trim()
     
     if (!isDelegationRestricted) {
       return { isValid: true }
     }
     
-    // Check for any new data entry attempts
-    const hasNewTimeData = timeInterval.trim().length > 0
-    const hasNewHours = hours > 0
-    const hasNewStatus = status !== 'alege'
+    const hasNewTimeData = safeTimeInterval.length > 0
+    const hasNewHours = (context.hours || 0) > 0
+    const hasNewStatus = context.status !== 'alege'
     
-    // Prevent new working time entries
     if (hasNewTimeData || hasNewHours) {
       return {
         isValid: false,
@@ -176,7 +153,6 @@ export class TimesheetValidationRules {
       }
     }
     
-    // Allow status changes to absences but not combined with working hours
     if (hasNewStatus && (hasNewTimeData || hasNewHours)) {
       return {
         isValid: false,
@@ -188,24 +164,17 @@ export class TimesheetValidationRules {
     return { isValid: true }
   }
 
-  /**
-   * Rule 1: Validate time format and constraints
-   * 
-   * Like validating email format - we check both syntax and business rules.
-   */
   private static validateTimeFormat(context: CellValidationContext): ValidationResult {
-    const { timeInterval = '' } = context
+    const safeTimeInterval = String(context?.timeInterval || '').trim()
     
-    // Empty time interval is valid (no work scheduled)
-    if (!timeInterval.trim()) {
+    if (!safeTimeInterval) {
       return { isValid: true }
     }
     
     try {
-      const hoursWorked = parseTimeInterval(timeInterval)
+      const hoursWorked = parseTimeInterval(safeTimeInterval)
       
-      // parseTimeInterval returns 0 for invalid formats
-      if (hoursWorked === 0 && timeInterval.trim() !== '') {
+      if (hoursWorked === 0 && safeTimeInterval !== '') {
         return {
           isValid: false,
           message: 'Invalid time format. Use "10-12" or "9:30-17:30"',
@@ -213,7 +182,6 @@ export class TimesheetValidationRules {
         }
       }
       
-      // Business rule: Maximum 16 hours per shift
       if (hoursWorked > 16) {
         return {
           isValid: false,
@@ -222,7 +190,6 @@ export class TimesheetValidationRules {
         }
       }
       
-      // Business rule: Minimum 30 minutes per shift
       if (hoursWorked < 0.5 && hoursWorked > 0) {
         return {
           isValid: false,
@@ -242,46 +209,9 @@ export class TimesheetValidationRules {
     }
   }
 
-  /**
-   * Rule 2: Validate hours vs absence conflict
-   * 
-   * Like validating mutually exclusive checkboxes - you can't be both 
-   * working and on full-day absence at the same time.
-   */
-  private static validateHoursAbsenceConflict(context: CellValidationContext): ValidationResult {
-    const { timeInterval = '', status, hours = 0, absenceTypes = [] } = context
-    
-    const hasWorkingHours = hours > 0 || timeInterval.trim().length > 0
-    const absenceType = absenceTypes.find(type => type.code === status)
-    const isFullDayAbsence = absenceType && !absenceType.requires_hours
-    
-    // Case 1: Working hours + full-day absence = CONFLICT
-    if (hasWorkingHours && isFullDayAbsence) {
-      return {
-        isValid: false,
-        message: `Nu poți avea ore de lucru împreună cu ${absenceType.name}`,
-        type: 'error'
-      }
-    }
-    
-    // Case 2: Partial-hours absence without hours = WARNING
-    if (!hasWorkingHours && absenceType && absenceType.requires_hours && status !== 'alege') {
-      return {
-        isValid: false,
-        message: `${absenceType.name} necesită ca orele de lucru să fie adăugate`,
-        type: 'warning'
-      }
-    }
-    
-    return { isValid: true }
-  }
+  // NEW RULE: Validate full-day absence integrity (replaces old conflict rule)
 
-  /**
-   * Rule 3: Validate partial hours absences
-   * 
-   * Like validating conditional required fields - if you select "partial day off",
-   * then hours become required and must be within reasonable limits.
-   */
+
   private static validatePartialHours(context: CellValidationContext): ValidationResult {
     const { status, hours = 0, absenceTypes = [] } = context
     
@@ -291,7 +221,6 @@ export class TimesheetValidationRules {
       return { isValid: true }
     }
     
-    // Partial absence requires hours
     if (hours <= 0) {
       return {
         isValid: false,
@@ -300,7 +229,6 @@ export class TimesheetValidationRules {
       }
     }
     
-    // Business rule: Partial absence cannot exceed normal work day
     if (hours > 8) {
       return {
         isValid: false,
@@ -312,24 +240,14 @@ export class TimesheetValidationRules {
     return { isValid: true }
   }
 
-  /**
-   * Rule 4: Validate status transitions
-   * 
-   * Like validating enum values - ensure the selected status is one of 
-   * the allowed values in our system.
-   */
   private static validateStatusTransition(context: CellValidationContext): ValidationResult {
     const { status, absenceTypes = [] } = context
     
-    // 'alege' is always valid (means "choose/select")
     if (status === 'alege') {
       return { isValid: true }
     }
     
-    // ✅ ENHANCED: Better handling of loading states
     if (absenceTypes.length === 0) {
-      // Don't block validation if absence types haven't loaded yet
-      // This prevents the "Invalid status: undefined" error
       console.warn('Absence types not loaded yet, allowing status:', status)
       return { 
         isValid: true,
@@ -338,17 +256,10 @@ export class TimesheetValidationRules {
       }
     }
     
-    // Check if status exists in available absence types
     const isValidStatus = absenceTypes.some(type => type.code === status)
     
     if (!isValidStatus) {
       const availableCodes = absenceTypes.map(t => t.code).join(', ')
-      console.error('Invalid status validation:', {
-        status,
-        availableTypes: availableCodes,
-        absenceTypesLength: absenceTypes.length
-      })
-      
       return {
         isValid: false,
         message: `Invalid status: ${status}. Available: ${availableCodes || 'none loaded'}`,
@@ -359,18 +270,12 @@ export class TimesheetValidationRules {
     return { isValid: true }
   }
 
-  /**
-   * Rule 5: Validate weekend work (informational only)
-   * 
-   * Like a soft validation warning - we allow it but inform the user
-   * that it's unusual.
-   */
   private static validateWeekendWork(context: CellValidationContext): ValidationResult {
     const { hours = 0, isWeekend = false } = context
     
     if (isWeekend && hours > 0) {
       return {
-        isValid: true, // Valid but with info message
+        isValid: true,
         message: 'Weekend work detected',
         type: 'info'
       }
@@ -379,12 +284,6 @@ export class TimesheetValidationRules {
     return { isValid: true }
   }
 
-  /**
-   * Validate entire timesheet grid including setup requirements
-   * 
-   * Like validating an entire form submission - we check both setup
-   * requirements and individual field validations.
-   */
   static validateGrid(
     entries: TimesheetEntry[],
     dateRange: Date[],
@@ -396,7 +295,6 @@ export class TimesheetValidationRules {
     const setupErrors: SetupError[] = []
     
     try {
-      // First validate grid setup requirements
       if (gridContext) {
         const setupValidation = this.validateGridSetup(gridContext)
         if (!setupValidation.isValid) {
@@ -407,7 +305,6 @@ export class TimesheetValidationRules {
         }
       }
       
-      // Only validate individual cells if setup is correct
       if (setupErrors.length === 0) {
         this.validateGridCells(entries, dateRange, absenceTypes, errors, warnings)
       }
@@ -435,9 +332,6 @@ export class TimesheetValidationRules {
     }
   }
 
-  /**
-   * Validate all cells in the grid
-   */
   private static validateGridCells(
     entries: TimesheetEntry[],
     dateRange: Date[],
@@ -446,17 +340,13 @@ export class TimesheetValidationRules {
     warnings: ValidationWarning[]
   ): void {
     entries.forEach(entry => {
-      if (!entry.days) {
-        return // Skip entries without day data
-      }
+      if (!entry.days) return
       
       dateRange.forEach(date => {
         const dateKey = date.toISOString().split('T')[0]
         const dayData = entry.days[dateKey]
         
-        if (!dayData) {
-          return // Skip dates without data
-        }
+        if (!dayData) return
         
         const isWeekend = date.getDay() === 0 || date.getDay() === 6
         
@@ -496,14 +386,7 @@ export class TimesheetValidationRules {
     })
   }
 
-  /**
-   * Validate grid setup requirements
-   * 
-   * Like validating form prerequisites - ensure all required setup
-   * is completed before allowing data entry.
-   */
   private static validateGridSetup(context: GridValidationContext): SetupValidationResult {
-    // Validate store selection
     if (!context.storeId || context.storeId.trim() === '') {
       return {
         isValid: false,
@@ -513,7 +396,6 @@ export class TimesheetValidationRules {
       }
     }
     
-    // Validate employee selection
     if (!context.entries || context.entries.length === 0) {
       return {
         isValid: false,
@@ -523,7 +405,6 @@ export class TimesheetValidationRules {
       }
     }
     
-    // Validate date range
     const startDate = new Date(context.startDate)
     const endDate = new Date(context.endDate)
     
@@ -545,7 +426,6 @@ export class TimesheetValidationRules {
       }
     }
     
-    // Business rule: Maximum 31 days per timesheet
     const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
     if (daysDiff > 31) {
       return {
@@ -559,28 +439,22 @@ export class TimesheetValidationRules {
     return { isValid: true }
   }
 
-  /**
-   * Get suggested fixes for validation errors
-   * 
-   * Like providing autocorrect suggestions - help users understand
-   * how to fix their validation errors.
-   */
   static getSuggestedFix(
     context: CellValidationContext,
     error: string
   ): SuggestedFix | null {
     try {
-      if (error.includes('Cannot have working hours with')) {
+      if (error.includes('Full-day absence should not have time intervals')) {
         return {
-          action: 'clear_hours',
-          description: 'Clear working hours to keep absence status'
+          action: 'clear_time_interval',
+          description: 'Clear time interval to keep full-day absence'
         }
       }
       
       if (error.includes('requires working hours')) {
         return {
           action: 'add_hours',
-          description: 'Adaugă ore de lucru sau schimbă în absență de o zi întreagă'
+          description: 'Add working hours or change to full-day absence'
         }
       }
       
@@ -598,13 +472,6 @@ export class TimesheetValidationRules {
         }
       }
       
-      if (error.includes('exceed 16 hours')) {
-        return {
-          action: 'reduce_hours',
-          description: 'Reduce shift duration to maximum 16 hours'
-        }
-      }
-      
       return null
       
     } catch (error) {
@@ -613,11 +480,6 @@ export class TimesheetValidationRules {
     }
   }
 
-  /**
-   * Utility method to check if a specific validation rule would pass
-   * 
-   * Useful for UI to show real-time validation feedback
-   */
   static checkSpecificRule(
     ruleName: string,
     context: CellValidationContext
@@ -626,8 +488,6 @@ export class TimesheetValidationRules {
       switch (ruleName) {
         case 'timeFormat':
           return this.validateTimeFormat(context)
-        case 'hoursAbsence':
-          return this.validateHoursAbsenceConflict(context)
         case 'partialHours':
           return this.validatePartialHours(context)
         case 'statusTransition':
