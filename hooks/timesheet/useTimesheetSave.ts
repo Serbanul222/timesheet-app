@@ -1,24 +1,29 @@
-// hooks/timesheet/useTimesheetSave.ts - Corrected and Final
+// hooks/timesheet/useTimesheetSave.ts - REWRITTEN FOR COPY-PASTE
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
 import { useAuth } from '@/hooks/auth/useAuth'
-import { TimesheetSaveService, SaveResult } from '@/lib/services/timesheetSaveService'
+// Ensure the correct SaveResult type is imported, which includes the optional duplicationCheck property
+import { TimesheetSaveService, EnhancedSaveResult as SaveResult } from '@/lib/services/timesheetSaveService'
 import { TimesheetGridData } from '@/types/timesheet-grid'
 import { useSaveResultHandler, SaveResultHandlerOptions } from './useSaveResultHandler'
+import { formatDateForInput } from '@/lib/utils/dateFormatting'
 import { toast } from 'sonner'
 
-// ✅ THE FIX: Import the timezone-safe date formatting function.
-import { formatDateForInput } from '@/lib/utils/dateFormatting';
-
 export interface TimesheetSaveOptions extends SaveResultHandlerOptions {
-  gridId?: string // Optional grid identifier for session consistency
+  gridId?: string
+  // This callback is no longer used by the hook itself but is kept for potential other uses
+  onDuplicateFound?: (result: SaveResult) => void
+  onDuplicateIgnored?: () => void
 }
 
 export function useTimesheetSave(options: TimesheetSaveOptions = {}) {
   const { user } = useAuth()
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaveResult, setLastSaveResult] = useState<SaveResult | null>(null)
+  
+  // This state is the primary communication channel to the UI (TimesheetGrid) for showing the modal
+  const [duplicateInfo, setDuplicateInfo] = useState<SaveResult | null>(null)
   
   const { handleSaveResult, handleSaveError } = useSaveResultHandler(options)
 
@@ -27,7 +32,10 @@ export function useTimesheetSave(options: TimesheetSaveOptions = {}) {
     return `grid-${gridId}-${Date.now()}`
   }, [options.gridId])
 
-  const saveTimesheet = useCallback(async (gridData: TimesheetGridData): Promise<SaveResult | null> => {
+  const saveTimesheet = useCallback(async (
+    gridData: TimesheetGridData,
+    skipDuplicationCheck = false
+  ): Promise<SaveResult | null> => {
     if (!user) {
       const error = new Error('User not authenticated')
       handleSaveError(error)
@@ -40,30 +48,39 @@ export function useTimesheetSave(options: TimesheetSaveOptions = {}) {
     }
 
     setIsSaving(true)
+    setDuplicateInfo(null) // Reset duplication state on every new save attempt
     
     try {
-      // ✅ THE FIX: Create a sanitized copy of gridData with clean, timezone-free date strings.
-      // This step is crucial because the gridData coming from the UI state can have
-      // full ISO strings with timezone information (e.g., "...T22:00:00.000Z").
-      // By formatting them to 'YYYY-MM-DD', we remove all ambiguity before saving.
       const cleanGridData: TimesheetGridData = {
         ...gridData,
         startDate: formatDateForInput(gridData.startDate),
         endDate: formatDateForInput(gridData.endDate),
-      };
+      }
 
       const saveOptions = {
         createdBy: user.id,
         gridSessionId: persistentSessionId,
-        gridTitle: `Timesheet for ${gridData.entries[0]?.employeeName} and ${gridData.entries.length - 1} others`
+        gridTitle: `Timesheet for ${gridData.entries[0]?.employeeName} and ${gridData.entries.length - 1} others`,
+        skipDuplicationCheck
       }
 
-      // Pass the CLEAN data to the save service.
       const result = await TimesheetSaveService.saveTimesheetGrid(cleanGridData, saveOptions)
       
       setLastSaveResult(result)
+
+      // THE CORE CHANGE: If a duplicate is found, we DO NOT show a toast.
+      // We set the `duplicateInfo` state, which the UI component (TimesheetGrid) will use to trigger the modal.
+      if (!result.success && result.duplicationCheck?.hasDuplicate) {
+        console.log('🚫 useTimesheetSave: Duplicate detected. Setting state for modal display.');
+        setDuplicateInfo(result);
+        
+        options.onDuplicateFound?.(result);
+        
+        return result; // End the function here, returning the failure result.
+      }
+
+      // For any other result (success or other types of failure), handle it normally.
       handleSaveResult(result)
-      
       return result
 
     } catch (error) {
@@ -75,8 +92,38 @@ export function useTimesheetSave(options: TimesheetSaveOptions = {}) {
     } finally {
       setIsSaving(false)
     }
-  }, [user, isSaving, persistentSessionId, handleSaveResult, handleSaveError])
+  }, [user, isSaving, persistentSessionId, handleSaveResult, handleSaveError, options])
 
+  const forceSave = useCallback(async (gridData: TimesheetGridData): Promise<SaveResult | null> => {
+    console.log('🔄 Force saving timesheet (ignoring duplicates)')
+    options.onDuplicateIgnored?.()
+    return saveTimesheet(gridData, true) // Skip duplication check
+  }, [saveTimesheet, options])
+  
+  const clearDuplicateInfo = useCallback(() => {
+    setDuplicateInfo(null)
+  }, [])
+  
+  // PRESERVED LOGIC
+  const checkDuplication = useCallback(async (gridData: TimesheetGridData) => {
+    if (!gridData.storeId || !gridData.entries.length) {
+      return { hasDuplicate: false }
+    }
+    try {
+      return await TimesheetSaveService.checkDuplication(
+        gridData.storeId,
+        formatDateForInput(gridData.startDate),
+        formatDateForInput(gridData.endDate),
+        gridData.entries,
+        gridData.id
+      )
+    } catch (error) {
+      console.error('Duplication check failed:', error)
+      return { hasDuplicate: false }
+    }
+  }, [])
+
+  // PRESERVED LOGIC
   const clearLastResult = useCallback(() => {
     setLastSaveResult(null)
   }, [])
@@ -87,6 +134,14 @@ export function useTimesheetSave(options: TimesheetSaveOptions = {}) {
     lastSaveResult,
     clearLastResult,
     canSave: !!user && !isSaving,
-    sessionId: persistentSessionId
+    sessionId: persistentSessionId,
+    
+    // The UI component will use these to manage the modal
+    duplicateInfo,
+    clearDuplicateInfo,
+
+    forceSave,
+    checkDuplication,
+    hasDuplicate: !!duplicateInfo?.duplicationCheck?.hasDuplicate
   }
 }

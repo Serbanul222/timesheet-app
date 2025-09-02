@@ -1,4 +1,4 @@
-// types/timesheet-grid.ts - Updated with validation support
+// types/timesheet-grid.ts - Updated with optional ID for creation
 import { RowData } from '@tanstack/react-table';
 import { Timesheet, Profile, AbsenceType, Delegation } from './database';
 
@@ -48,8 +48,9 @@ export interface TimesheetEntry {
   days: Record<string, DayData> // key is date string (YYYY-MM-DD)
 }
 
+// UPDATED: Made id optional for creation, required for existing timesheets
 export interface TimesheetGridData {
-  id: string
+  id?: string // Optional for creation, will be set after save
   startDate: string
   endDate: string
   entries: TimesheetEntry[]
@@ -202,7 +203,7 @@ export const VALIDATION_RULES = {
 // ✅ NEW: Default status for new cells
 export const DEFAULT_CELL_STATUS: DayStatus = 'alege'
 
-// ✅ NOU: Mesaje de validare comune
+// ✅ NEW: Common validation messages
 export const VALIDATION_MESSAGES = {
   HOURS_ABSENCE_CONFLICT: 'Nu se pot avea ore de lucru cu o absență de o zi întreagă',
   PARTIAL_HOURS_REQUIRED: 'Acest tip de absență necesită ore de lucru',

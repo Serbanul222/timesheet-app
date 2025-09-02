@@ -1,36 +1,81 @@
-// lib/services/timesheetSaveService.ts - COMPLETE FILE with original logic restored and targeted date fixes
+// lib/services/timesheetSaveService.ts - Fixed duplication logic
 import { supabase } from '@/lib/supabase/client';
-import { TimesheetGridData } from '@/types/timesheet-grid';
+import { TimesheetGridData, TimesheetEntry } from '@/types/timesheet-grid';
 import { calculateTotalHours, generateDateRange } from '@/lib/timesheet-utils';
 import { SaveOptions, SaveResult } from '@/types/database';
 import { TimesheetValidationRules } from '@/lib/validation/timesheetValidationRules';
 import { AbsenceTypesService } from '@/lib/services/absenceTypesService';
-
-// ✅ THE FIX: Import the necessary timezone-safe date formatting functions.
+import { TimesheetDuplicationRules, DuplicationCheckResult } from '@/lib/validation/timesheetDuplicationRules';
 import { formatMonthYearRomanian, formatDateForInput } from '@/lib/utils/dateFormatting';
 
 // Re-export the types so they can be imported from this service
 export type { SaveOptions, SaveResult } from '@/types/database';
 
+// Enhanced SaveResult interface to include duplication info
+export interface EnhancedSaveResult extends SaveResult {
+  duplicationCheck?: DuplicationCheckResult;
+}
+
+// Enhanced SaveOptions interface to include duplication skip option
+export interface EnhancedSaveOptions extends SaveOptions {
+  skipDuplicationCheck?: boolean;
+}
+
 // DEBUG: Log that the enhanced service is being loaded
-console.log('🔍 Enhanced TimesheetSaveService loaded with validation support');
+console.log('🔍 Enhanced TimesheetSaveService loaded with validation and duplication support');
 
 export class TimesheetSaveService {
   
-  // ENHANCED: Save method with validation
+  /**
+   * ENHANCED: Save method with duplication check and validation
+   * Preserves all original logic while adding duplication prevention
+   */
   public static async saveTimesheetGrid(
     gridData: TimesheetGridData, 
-    options: SaveOptions,
+    options: EnhancedSaveOptions,
     skipValidation: boolean = false
-  ): Promise<SaveResult> {
+  ): Promise<EnhancedSaveResult> {
     try {
       console.log('🔍 SaveService: Starting save process', { 
         skipValidation, 
+        skipDuplication: options.skipDuplicationCheck,
         entriesCount: gridData.entries.length,
-        storeId: gridData.storeId
+        storeId: gridData.storeId,
+        isUpdate: !!gridData.id
       });
 
-      // STEP 1: Run validation before saving (unless explicitly skipped)
+      // NEW: Step 0 - Check for duplicates BEFORE validation (for new timesheets only)
+      if (!options.skipDuplicationCheck && !gridData.id && gridData.storeId) {
+        console.log('🔍 SaveService: Running duplication check...', {
+          storeId: gridData.storeId,
+          startDate: gridData.startDate,
+          endDate: gridData.endDate,
+          employeeCount: gridData.entries.length
+        });
+        
+        const duplicationCheck = await TimesheetDuplicationRules.checkForDuplicate(
+          gridData.storeId,
+          gridData.startDate,
+          gridData.endDate,
+          gridData.entries,
+          gridData.id // Will be undefined for new timesheets
+        );
+
+        console.log('🔍 SaveService: Duplication check result:', duplicationCheck);
+
+        if (duplicationCheck.hasDuplicate) {
+          console.log('❌ SaveService: Duplicate timesheet found, blocking save');
+          return this._buildDuplicationErrorResult(gridData, duplicationCheck, options.gridSessionId);
+        }
+        
+        console.log('✅ SaveService: No duplicates found, proceeding');
+      } else if (gridData.id) {
+        console.log('⚠️ SaveService: Updating existing timesheet, skipping duplication check');
+      } else {
+        console.log('⚠️ SaveService: Duplication check skipped');
+      }
+
+      // PRESERVED: Step 1 - Run validation before saving (unless explicitly skipped)
       if (!skipValidation) {
         console.log('🔍 SaveService: Running validation...');
         const validationResult = await this._validateGridBeforeSave(gridData);
@@ -53,23 +98,21 @@ export class TimesheetSaveService {
         console.log('⚠️ SaveService: Validation skipped');
       }
 
-      // STEP 2: Transform and save
+      // PRESERVED: Step 2 - Transform and save
       console.log('🔍 SaveService: Transforming data for database...');
       const gridForDatabase = this._transformGridForDatabase(gridData, options);
       
-      // ✅ THE FIX: Use the sanitized dates from gridForDatabase to find the existing grid.
-      const existingGrid = await this._findExistingGrid(
-          gridForDatabase.store_id!, 
-          gridForDatabase.period_start, 
-          gridForDatabase.period_end
-      );
-
+      // FIXED: Only look for existing grid if this is an explicit update (has gridData.id)
+      let existingGrid = null;
       let dbResult: { gridId: string; isUpdate: boolean };
 
-      if (existingGrid) {
-        console.log('🔍 SaveService: Updating existing grid:', existingGrid.id);
-        dbResult = await this._updateGrid(existingGrid.id, gridForDatabase);
+      if (gridData.id) {
+        // This is an explicit update - look for the specific grid
+        existingGrid = { id: gridData.id };
+        console.log('🔍 SaveService: Updating specific timesheet:', gridData.id);
+        dbResult = await this._updateGrid(gridData.id, gridForDatabase);
       } else {
+        // This is a new timesheet - create it directly (duplication already checked above)
         console.log('🔍 SaveService: Creating new grid');
         dbResult = await this._createGrid(gridForDatabase);
       }
@@ -82,14 +125,33 @@ export class TimesheetSaveService {
     }
   }
 
-  // ✅ RESTORED: Your original, detailed validation logic is fully restored.
+  /**
+   * NEW: Helper method to check duplicates without saving
+   */
+  public static async checkDuplication(
+    storeId: string,
+    startDate: string,
+    endDate: string,
+    entries: TimesheetEntry[],
+    excludeTimesheetId?: string
+  ): Promise<DuplicationCheckResult> {
+    return TimesheetDuplicationRules.checkForDuplicate(
+      storeId,
+      startDate,
+      endDate,
+      entries,
+      excludeTimesheetId
+    );
+  }
+
+  // PRESERVED: Your original, detailed validation logic
   private static async _validateGridBeforeSave(gridData: TimesheetGridData) {
     try {
       console.log('🔍 Validation: Loading absence types...');
       const absenceTypes = await AbsenceTypesService.getActiveAbsenceTypes();
       console.log('🔍 Validation: Loaded absence types:', absenceTypes.length);
 
-      // ENHANCED: Check for ALL full-day absences + hours conflicts
+      // Check for ALL full-day absences + hours conflicts
       const errors: any[] = [];
       
       // Create a map of status codes to their requires_hours property for fast lookup
@@ -191,8 +253,32 @@ export class TimesheetSaveService {
     }
   }
 
-  // ✅ RESTORED: Your original error building logic.
-  private static _buildValidationErrorResult(gridData: TimesheetGridData, validationResult: any, sessionId: string): SaveResult {
+  // NEW: Build duplication error result
+  private static _buildDuplicationErrorResult(
+    gridData: TimesheetGridData, 
+    duplicationCheck: DuplicationCheckResult, 
+    sessionId: string
+  ): EnhancedSaveResult {
+    console.log('🔍 SaveService: Building duplication error result');
+
+    return {
+      success: false,
+      savedCount: 0,
+      failedCount: gridData.entries.length,
+      errors: [{
+        employeeId: 'system',
+        employeeName: 'System',
+        error: duplicationCheck.message || 'Duplicate timesheet exists'
+      }],
+      savedTimesheets: [],
+      sessionId: sessionId,
+      warnings: [duplicationCheck.message || 'Duplicate timesheet detected'],
+      duplicationCheck: duplicationCheck // Include duplication details for UI handling
+    };
+  }
+
+  // PRESERVED: Your original error building logic
+  private static _buildValidationErrorResult(gridData: TimesheetGridData, validationResult: any, sessionId: string): EnhancedSaveResult {
     const allErrors = [
       ...validationResult.errors.map((e: any) => `${e.employeeName} (${e.date}): ${e.error}`),
       ...validationResult.setupErrors.map((e: any) => `Setup: ${e.error}`)
@@ -209,8 +295,9 @@ export class TimesheetSaveService {
     };
   }
 
-  private static _transformGridForDatabase(gridData: TimesheetGridData, options: SaveOptions) {
-    // ✅ THE FIX: Ensure dates are always in the clean 'YYYY-MM-DD' format before saving.
+  // PRESERVED: All your original helper methods
+  private static _transformGridForDatabase(gridData: TimesheetGridData, options: EnhancedSaveOptions) {
+    // Ensure dates are always in the clean 'YYYY-MM-DD' format before saving
     const period_start = formatDateForInput(gridData.startDate);
     const period_end = formatDateForInput(gridData.endDate);
 
@@ -228,7 +315,6 @@ export class TimesheetSaveService {
     };
   }
 
-  // ✅ RESTORED: Your original JSON creation logic.
   private static _createDailyEntriesJSON(gridData: TimesheetGridData): any {
     const employeeEntries: { [employeeId: string]: any } = {};
     gridData.entries.forEach(entry => {
@@ -255,14 +341,8 @@ export class TimesheetSaveService {
     return employeeEntries;
   }
 
-  private static async _findExistingGrid(storeId: string, startDate: string, endDate: string) {
-    const { data, error } = await supabase.from('timesheets').select('id').eq('store_id', storeId).eq('period_start', startDate).eq('period_end', endDate).maybeSingle();
-    if (error) {
-      console.error('Error finding existing grid:', error.message);
-      return null;
-    }
-    return data;
-  }
+  // REMOVED: _findExistingGrid method - this was causing the issue
+  // We now only create new timesheets or update existing ones with explicit IDs
 
   private static async _createGrid(gridData: any): Promise<{ gridId: string; isUpdate: boolean }> {
     const { data, error } = await supabase.from('timesheets').insert(gridData).select('id').single();
@@ -276,7 +356,6 @@ export class TimesheetSaveService {
     return { gridId: data.id, isUpdate: true };
   }
   
-  // ✅ THE FIX: Replace the faulty date logic with your robust, timezone-safe formatting utility.
   private static _generateGridTitle = (gridData: TimesheetGridData) => {
     const monthYear = formatMonthYearRomanian(gridData.startDate);
     const title = `${monthYear} - ${gridData.entries.length} angajati`;
@@ -284,7 +363,7 @@ export class TimesheetSaveService {
     return title.charAt(0).toUpperCase() + title.slice(1);
   }
   
-  private static _buildSuccessResult = (gridData: TimesheetGridData, dbResult: { gridId: string, isUpdate: boolean }, options: SaveOptions): SaveResult => ({
+  private static _buildSuccessResult = (gridData: TimesheetGridData, dbResult: { gridId: string, isUpdate: boolean }, options: EnhancedSaveOptions): EnhancedSaveResult => ({
     success: true,
     savedCount: gridData.entries.length,
     failedCount: 0,
@@ -298,7 +377,7 @@ export class TimesheetSaveService {
     sessionId: options.gridSessionId,
   });
 
-  private static _buildErrorResult = (gridData: TimesheetGridData, error: any, sessionId: string): SaveResult => ({
+  private static _buildErrorResult = (gridData: TimesheetGridData, error: any, sessionId: string): EnhancedSaveResult => ({
     success: false,
     savedCount: 0,
     failedCount: gridData.entries.length,
