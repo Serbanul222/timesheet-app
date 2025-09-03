@@ -1,4 +1,4 @@
-// FILE: app/timesheets/page.tsx - FINAL AND CORRECTED
+// FILE: app/timesheets/page.tsx - FINAL AND CLEANED VERSION
 'use client'
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
@@ -13,43 +13,30 @@ import { type TimesheetGridData } from '@/types/timesheet-grid'
 import { generateDefaultTimesheetData } from '@/lib/timesheet-utils'
 import { toast } from 'sonner'
 
+// Notă: Am eliminat importul și utilizarea 'useEmployeeDeletion' și 'delay' de aici,
+// deoarece această logică este acum complet încapsulată în TimesheetControls.tsx.
+
 type ViewMode = 'list' | 'grid' | 'dashboard'
 
 export interface TimesheetGridRecord {
-  id: string;
-  store_id: string;
-  zone_id: string;
-  period_start: string;
-  period_end: string;
-  total_hours: number;
-  employee_count: number;
-  grid_title: string;
-  created_at: string;
-  updated_at: string;
-  daily_entries: any;
-  store?: { name: string };
+  id: string; store_id: string; zone_id: string; period_start: string; period_end: string;
+  total_hours: number; employee_count: number; grid_title: string; created_at: string;
+  updated_at: string; daily_entries: any; store?: { name: string };
 }
 
-/**
- * This inner component contains all the page logic and is wrapped in a Suspense
- * boundary because it uses the useSearchParams() hook.
- */
 function TimesheetsPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const queryClient = useQueryClient();
 
-  // PRESERVED: All your state declarations are unchanged.
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [isLoading, setIsLoading] = useState(true)
   const [editingTimesheetId, setEditingTimesheetId] = useState<string | null>(null)
   const [gridData, setGridData] = useState<TimesheetGridData | null>(null)
   const [originalData, setOriginalData] = useState<TimesheetGridData | null>(null)
 
-  // PRESERVED: Your data loading function is unchanged.
   const loadTimesheetForEditing = useCallback(async (timesheetId: string) => {
-    console.log('🔍 Page: loadTimesheetForEditing called with ID:', timesheetId);
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       const loadedGridData = await TimesheetDataLoader.loadTimesheetForEdit({ timesheetId, includeHistoricalEmployees: true });
       if (!loadedGridData) {
@@ -62,7 +49,6 @@ function TimesheetsPageContent() {
       if (validation.warnings.length > 0) {
         toast.warning('Datele au fost încărcate cu avertismente', { description: validation.warnings.join(', ') });
       }
-      console.log('✅ Page: Timesheet loaded successfully for editing');
       setGridData(loadedGridData);
       setOriginalData(loadedGridData);
       setViewMode('grid');
@@ -76,24 +62,45 @@ function TimesheetsPageContent() {
     }
   }, []);
 
-  // PRESERVED: Your useEffect for managing state from the URL is unchanged.
   useEffect(() => {
-    const editId = searchParams.get('edit')
+    const editId = searchParams.get('edit');
     if (editId && editId !== editingTimesheetId) {
       setEditingTimesheetId(editId);
       loadTimesheetForEditing(editId);
     } else if (!editId && editingTimesheetId) {
-        setEditingTimesheetId(null);
-        setGridData(null);
-        setOriginalData(null);
-        if (viewMode === 'grid') setViewMode('list');
-    }
-     else {
+      setEditingTimesheetId(null);
+      setGridData(null);
+      setOriginalData(null);
+      if (viewMode === 'grid') setViewMode('list');
+    } else {
       setIsLoading(false);
     }
   }, [searchParams, editingTimesheetId, loadTimesheetForEditing, viewMode]);
 
-  // PRESERVED: Your handler for creating a new timesheet is unchanged.
+  function handleGridDataChange(updates: Partial<TimesheetGridData>) {
+    setGridData(prevData => {
+      const baseData = prevData || generateDefaultTimesheetData();
+      return { ...baseData, ...updates };
+    });
+  };
+
+  const returnToList = () => {
+    if (editingTimesheetId) {
+      router.push('/timesheets');
+    } else {
+      setViewMode('list');
+      setGridData(null);
+      setOriginalData(null);
+      setEditingTimesheetId(null);
+    }
+  };
+
+  const handleCancel = () => returnToList();
+  const handleSaveSuccess = () => {
+    toast.success('Pontaj salvat cu succes!');
+    queryClient.invalidateQueries({ queryKey: ['timesheet_grids'] });
+    returnToList();
+  };
   const handleCreateNew = () => {
     router.push('/timesheets');
     const defaultData = generateDefaultTimesheetData();
@@ -102,62 +109,13 @@ function TimesheetsPageContent() {
     setOriginalData(defaultData);
     setViewMode('grid');
   };
-
-  // PRESERVED: Your handler for editing a timesheet from the list is unchanged.
-  const handleEditTimesheet = async (timesheet: TimesheetGridRecord) => {
+  const handleEditTimesheet = (timesheet: TimesheetGridRecord) => {
     router.push(`/timesheets?edit=${timesheet.id}`);
   };
-
-  // PRESERVED: Your handler for editing from the modal is unchanged.
-  const handleEditExistingTimesheet = useCallback(async (timesheetId: string) => {
-    console.log('🔍 Page: handleEditExistingTimesheet called with ID:', timesheetId);
-    try {
-      router.push(`/timesheets?edit=${timesheetId}`);
-      console.log('✅ Page: Redirecting to edit existing timesheet');
-    } catch (error) {
-      console.error('❌ Page: Failed to redirect to edit existing timesheet:', error);
-      toast.error('Eroare la redicționare pentru editare pontaj');
-    }
+  const handleEditExistingTimesheet = useCallback((timesheetId: string) => {
+    router.push(`/timesheets?edit=${timesheetId}`);
   }, [router]);
 
-  // PRESERVED: Your handler for grid data changes is unchanged.
-  const handleGridDataChange = (updates: Partial<TimesheetGridData>) => {
-    setGridData(prevData => {
-      const baseData = prevData || generateDefaultTimesheetData();
-      return { ...baseData, ...updates };
-    });
-  };
-
-  // ✅ THIS IS THE FIX ✅
-  // A new helper function to handle all "return to list" scenarios.
-  const returnToList = () => {
-    // We check if we were in "edit mode" by looking at `editingTimesheetId`.
-    if (editingTimesheetId) {
-      // If we were editing, changing the URL is enough. The useEffect will handle the state cleanup.
-      router.push('/timesheets');
-    } else {
-      // If we were in "create mode", the URL is already correct.
-      // We MUST manually set the state to return to the list view.
-      setViewMode('list');
-      setGridData(null);
-      setOriginalData(null);
-      setEditingTimesheetId(null);
-    }
-  };
-
-  // The handleCancel function now uses the new helper.
-  const handleCancel = () => {
-    returnToList();
-  };
-
-  // The handleSaveSuccess function now ALSO uses the new helper.
-  const handleSaveSuccess = () => {
-    toast.success('Pontaj salvat cu succes!');
-    queryClient.invalidateQueries({ queryKey: ['timesheet_grids'] });
-    returnToList();
-  };
-
-  // PRESERVED: Your entire JSX return block is unchanged.
   return (
     <>
       {process.env.NODE_ENV === 'development' && (
@@ -174,14 +132,16 @@ function TimesheetsPageContent() {
             isSaving={false}
             existingTimesheetId={editingTimesheetId || undefined}
             originalData={originalData}
-            onCancel={handleCancel} // This now calls the correct logic
+            onCancel={handleCancel}
+            // Notă: Nu mai pasăm props-uri de ștergere, deoarece 'TimesheetControls'
+            // își gestionează propria logică intern.
           />
           {gridData && gridData.storeId ? (
             <TimesheetGrid
               data={gridData}
               onDataChange={handleGridDataChange}
-              onCancel={handleCancel} // This also calls the correct logic
-              onSaveSuccess={handleSaveSuccess} // This now calls the correct logic
+              onCancel={handleCancel}
+              onSaveSuccess={handleSaveSuccess}
               onEditExistingTimesheet={handleEditExistingTimesheet}
               readOnly={false}
             />
@@ -197,10 +157,6 @@ function TimesheetsPageContent() {
   );
 }
 
-/**
- * This is the main page export. It wraps the dynamic content in a Suspense
- * boundary to prevent build errors related to useSearchParams.
- */
 export default function TimesheetsPage() {
   return (
     <MainLayout>

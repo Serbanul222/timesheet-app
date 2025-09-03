@@ -1,4 +1,4 @@
-// hooks/data/useEmployees.ts - FIXED: Enhanced with historical timesheet context
+// hooks/data/useEmployees.ts - Updated to filter inactive employees
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
@@ -27,21 +27,22 @@ export interface EmployeeWithDetails extends Employee {
     delegated_by_name: string
   }
   isDelegated?: boolean
-  isHistorical?: boolean // ✅ NEW: Flag for employees from existing timesheets
+  isHistorical?: boolean
   effectiveStoreId: string
-  effectiveZoneId: string
+  effectiveZoneId: string | null
 }
 
 interface UseEmployeesOptions {
   storeId?: string
   includeDelegated?: boolean
-  timesheetId?: string // ✅ NEW: Include employees from existing timesheet
+  timesheetId?: string
+  includeInactive?: boolean // New option to include inactive employees
 }
 
 export function useEmployees(options: UseEmployeesOptions = {}) {
   const { user, profile } = useAuth()
   const permissions = usePermissions()
-  const { storeId, includeDelegated = true, timesheetId } = options
+  const { storeId, includeDelegated = true, timesheetId, includeInactive = false } = options
 
   // Determine the effective store ID
   const effectiveStoreId = storeId || (profile?.role === 'STORE_MANAGER' ? profile.store_id : '')
@@ -52,15 +53,15 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
     error,
     refetch
   } = useQuery({
-    queryKey: ['employees', effectiveStoreId, profile?.role, profile?.zone_id, includeDelegated, timesheetId],
+    queryKey: ['employees', effectiveStoreId, profile?.role, profile?.zone_id, includeDelegated, timesheetId, includeInactive],
     queryFn: async (): Promise<EmployeeWithDetails[]> => {
-      console.log('🔍 useEmployees: Fetching with historical context for timesheet:', timesheetId)
+      console.log('🔍 useEmployees: Fetching employees with active filter')
       
       let regularEmployees: EmployeeWithDetails[] = []
       let delegatedEmployees: EmployeeWithDetails[] = []
       let historicalEmployees: EmployeeWithDetails[] = []
 
-      // ✅ STEP 1: Get historical employees from existing timesheet
+      // STEP 1: Get historical employees from existing timesheet
       if (timesheetId && timesheetId.trim() !== '') {
         try {
           const { data: existingTimesheet, error: timesheetError } = await supabase
@@ -79,14 +80,12 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
             
             if (dailyEntries && typeof dailyEntries === 'object') {
               if (dailyEntries._employees) {
-                // New format: { _employees: { [id]: {...} }, [date]: {...} }
                 historicalEmployeeIds = Object.keys(dailyEntries._employees)
               } else {
-                // Alternative format: { [employeeId]: { name, days: {...} } }
                 historicalEmployeeIds = Object.keys(dailyEntries).filter(key => 
-                  !key.startsWith('_') && // Skip metadata
+                  !key.startsWith('_') &&
                   typeof dailyEntries[key] === 'object' &&
-                  dailyEntries[key].name // Has employee name
+                  dailyEntries[key].name
                 )
               }
             }
@@ -94,7 +93,7 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
             if (historicalEmployeeIds.length > 0) {
               console.log('📋 Found historical employees in timesheet:', historicalEmployeeIds)
               
-              // Fetch these employees regardless of current delegation status
+              // Fetch these employees - include inactive ones for historical context
               const { data: histEmployees, error: histError } = await supabase
                 .from('employees')
                 .select(`
@@ -103,6 +102,7 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
                   zone:zones(id, name)
                 `)
                 .in('id', historicalEmployeeIds)
+                // Note: No is_active filter here - we want historical employees even if inactive
 
               if (histError) {
                 console.error('❌ Error fetching historical employees:', histError)
@@ -126,27 +126,28 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
                   currentDelegations?.map(d => [d.employee_id, d]) || []
                 )
 
-                historicalEmployees = histEmployees.map(emp => {
-                  const delegation = delegationMap.get(emp.id)
-                  const isDelegated = !!delegation
-                  
-                  return {
-                    ...emp,
-                    isDelegated,
-                    isHistorical: true, // ✅ Mark as historical
-                    delegation: delegation ? {
-                      id: delegation.id,
-                      from_store_id: delegation.from_store_id,
-                      from_store_name: delegation.from_store?.name || 'Unknown Store',
-                      to_store_id: delegation.to_store_id,
-                      valid_until: delegation.valid_until,
-                      delegated_by_name: delegation.delegated_by_user?.full_name || 'Unknown'
-                    } : undefined,
-                    // For historical employees, use original store context
-                    effectiveStoreId: emp.store_id,
-                    effectiveZoneId: emp.zone_id
-                  }
-                })
+                historicalEmployees = histEmployees
+                  .filter(emp => emp.is_active || includeInactive) // Filter inactive unless explicitly included
+                  .map(emp => {
+                    const delegation = delegationMap.get(emp.id)
+                    const isDelegated = !!delegation
+                    
+                    return {
+                      ...emp,
+                      isDelegated,
+                      isHistorical: true,
+                      delegation: delegation ? {
+                        id: delegation.id,
+                        from_store_id: delegation.from_store_id,
+                        from_store_name: (delegation.from_store as any)?.name || 'Unknown Store',
+                        to_store_id: delegation.to_store_id,
+                        valid_until: delegation.valid_until,
+                        delegated_by_name: (delegation.delegated_by_user as any)?.full_name || 'Unknown'
+                      } : undefined,
+                      effectiveStoreId: emp.store_id,
+                      effectiveZoneId: emp.zone_id
+                    }
+                  })
 
                 console.log('✅ Historical employees processed:', historicalEmployees.length)
               }
@@ -157,12 +158,12 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
         }
       }
 
-      // ✅ STEP 2: Fetch current regular employees (excluding those delegated away)
+      // STEP 2: Fetch current regular employees (only active ones)
       if (effectiveStoreId && effectiveStoreId.trim() !== '') {
         const now = new Date().toISOString()
         
-        // Get all employees assigned to this store
-        const { data: allStoreEmployees, error } = await supabase
+        // Get all ACTIVE employees assigned to this store
+        let employeeQuery = supabase
           .from('employees')
           .select(`
             *,
@@ -171,6 +172,13 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
           `)
           .eq('store_id', effectiveStoreId)
           .order('full_name', { ascending: true })
+
+        // Filter by active status unless explicitly including inactive
+        if (!includeInactive) {
+          employeeQuery = employeeQuery.eq('is_active', true)
+        }
+
+        const { data: allStoreEmployees, error } = await employeeQuery
 
         if (error) {
           console.error('❌ useEmployees: Employee fetch error:', error)
@@ -200,7 +208,7 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
         regularEmployees = (allStoreEmployees || [])
           .filter(emp => 
             !delegatedAwayEmployeeIds.has(emp.id) && 
-            !historicalIds.has(emp.id) // Don't duplicate historical employees
+            !historicalIds.has(emp.id)
           )
           .map(emp => ({
             ...emp,
@@ -210,14 +218,14 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
             effectiveZoneId: emp.zone_id
           }))
 
-        console.log('✅ Regular employees:', regularEmployees.length)
+        console.log('✅ Regular employees (active only):', regularEmployees.length)
       }
 
-      // ✅ STEP 3: Fetch delegated employees (delegated TO this store)
+      // STEP 3: Fetch delegated employees (only active ones delegated TO this store)
       if (includeDelegated && effectiveStoreId && effectiveStoreId.trim() !== '') {
         const now = new Date().toISOString()
         
-        const { data: delegationsData, error: delegationError } = await supabase
+        let delegationQuery = supabase
           .from('employee_delegations')
           .select(`
             id,
@@ -238,38 +246,53 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
           .lte('valid_from', now)
           .gte('valid_until', now)
 
+        const { data: delegationsData, error: delegationError } = await delegationQuery
+
         if (delegationError) {
           console.error('❌ useEmployees: Delegation fetch error:', delegationError)
         } else if (delegationsData) {
-          // Filter out employees already in historical list
-          const historicalIds = new Set(historicalEmployees.map(emp => emp.id))
-          
-          delegatedEmployees = delegationsData
-            .filter(delegation => 
-              delegation.employee && 
-              !historicalIds.has(delegation.employee.id) // Don't duplicate
-            )
-            .map(delegation => ({
-              ...delegation.employee,
-              delegation: {
-                id: delegation.id,
-                from_store_id: delegation.from_store_id,
-                from_store_name: delegation.from_store?.name || 'Unknown Store',
-                to_store_id: delegation.to_store_id,
-                valid_until: delegation.valid_until,
-                delegated_by_name: delegation.delegated_by_user?.full_name || 'Unknown'
-              },
-              isDelegated: true,
-              isHistorical: false,
-              effectiveStoreId: delegation.to_store_id,
-              effectiveZoneId: delegation.employee.zone_id
-            }))
+            const historicalIds = new Set(historicalEmployees.map(emp => emp.id));
 
-          console.log('🔄 Delegated employees:', delegatedEmployees.length)
+            delegatedEmployees = delegationsData.reduce((acc: EmployeeWithDetails[], delegation) => {
+                const employeeData = Array.isArray(delegation.employee)
+                    ? delegation.employee[0]
+                    : delegation.employee;
+
+                // Skip if employee is invalid, historical, or inactive (when not included)
+                if (
+                    !employeeData ||
+                    historicalIds.has(employeeData.id) ||
+                    (!employeeData.is_active && !includeInactive)
+                ) {
+                    return acc;
+                }
+
+                // Construct the valid EmployeeWithDetails object
+                const newEmployee: EmployeeWithDetails = {
+                    ...employeeData,
+                    delegation: {
+                        id: delegation.id,
+                        from_store_id: delegation.from_store_id,
+                        from_store_name: (delegation.from_store as any)?.name || 'Unknown Store',
+                        to_store_id: delegation.to_store_id,
+                        valid_until: delegation.valid_until,
+                        delegated_by_name: (delegation.delegated_by_user as any)?.full_name || 'Unknown'
+                    },
+                    isDelegated: true,
+                    isHistorical: false,
+                    effectiveStoreId: delegation.to_store_id,
+                    effectiveZoneId: employeeData.zone_id,
+                };
+
+                acc.push(newEmployee);
+                return acc;
+            }, []);
+
+          console.log('🔄 Delegated employees (active only):', delegatedEmployees.length)
         }
       }
 
-      // ✅ STEP 4: Combine all employees with historical first (for timesheet editing)
+      // STEP 4: Combine all employees with historical first
       let allEmployees = [...historicalEmployees, ...regularEmployees, ...delegatedEmployees]
 
       // Apply role-based filtering
@@ -281,15 +304,16 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
         allEmployees = allEmployees.filter(emp => 
           emp.store_id === profile.store_id || 
           (emp.delegation && effectiveStoreId === profile.store_id) ||
-          emp.isHistorical // Always include historical employees for editing
+          emp.isHistorical
         )
       }
 
-      console.log('✅ useEmployees final result:', {
+      console.log('✅ useEmployees final result (with active filter):', {
         historical: historicalEmployees.length,
         regular: regularEmployees.length,
         delegated: delegatedEmployees.length,
         total: allEmployees.length,
+        activeFilter: !includeInactive,
         storeId: effectiveStoreId,
         timesheetId
       })
@@ -335,7 +359,7 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
     employees,
     regularEmployees,
     delegatedEmployees,
-    historicalEmployees, // ✅ NEW: Separate historical employees
+    historicalEmployees,
     isLoading,
     error,
     refetch,

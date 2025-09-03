@@ -1,18 +1,20 @@
-// FILE: components/timesheets/TimesheetControls.tsx
+// FILE: components/timesheets/TimesheetControls.tsx - FINAL VERSION WITH REFINED LOGIC
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/auth/useAuth'
 import { useEmployees } from '@/hooks/data/useEmployees'
 import { useStores } from '@/hooks/data/useStores'
+import { useEmployeeDeletion } from '@/hooks/timesheet/useEmployeeDeletion'
 import { type TimesheetGridData, type DayStatus, type TimesheetEntry } from '@/types/timesheet-grid'
 import { generateDateRange, formatDateLocal } from '@/lib/timesheet-utils'
-
 import { PeriodAndStoreSelector } from './PeriodAndStoreSelector'
 import { EmployeeSelectionPanel } from './EmployeeSelectionPanel'
 import { EmployeeDelegationPanel } from './EmployeeDelegationPanel'
 import { DelegationInfoPanel } from './DelegationInfoPanel'
 import { Button } from '@/components/ui/Button'
+
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 interface TimesheetControlsProps {
   timesheetData: TimesheetGridData;
@@ -21,6 +23,7 @@ interface TimesheetControlsProps {
   existingTimesheetId?: string;
   originalData: TimesheetGridData | null;
   onCancel: () => void;
+  readOnly?: boolean;
 }
 
 export function TimesheetControls({
@@ -30,6 +33,7 @@ export function TimesheetControls({
   existingTimesheetId,
   originalData,
   onCancel,
+  readOnly = false,
 }: TimesheetControlsProps) {
   const { profile } = useAuth()
   const { stores, loadingStores } = useStores()
@@ -46,35 +50,70 @@ export function TimesheetControls({
     storeId: timesheetData.storeId,
     includeDelegated: true,
     timesheetId: existingTimesheetId,
+    // [LOGICA CHEIE 1] Cerem hook-ului să includă inactivii,
+    // astfel încât să avem control total asupra filtrării mai jos.
+    includeInactive: !!existingTimesheetId, 
   });
 
-  const selectedEmployeeIds = useMemo(() => 
+  const { deleteEmployee, deleteBulkEmployees } = useEmployeeDeletion({
+    data: timesheetData,
+    onDataChange: onUpdate,
+    readOnly
+  });
+
+  // Handler robust pentru ștergerea unui singur angajat
+  const handleEmployeeDelete = useCallback(async (employeeId: string) => {
+    await deleteEmployee(employeeId);
+    await delay(400); 
+    await refetchEmployees();
+  }, [deleteEmployee, refetchEmployees]);
+
+  // Handler robust pentru ștergerea în masă
+  const handleBulkEmployeeDelete = useCallback(async (employeeIds: string[]) => {
+    await deleteBulkEmployees(employeeIds);
+    await delay(400);
+    await refetchEmployees();
+  }, [deleteBulkEmployees, refetchEmployees]);
+
+  // Toate ID-urile angajaților prezenți în grila de jos
+  const selectedIdsFromGrid = useMemo(() => 
     timesheetData.entries.map((entry) => entry.employeeId),
     [timesheetData.entries]
   );
 
-  const allAvailableEmployees = useMemo(() => {
-    const employeeMap = new Map<string, any>(); 
-    employees.forEach(emp => employeeMap.set(emp.id, emp));
-    historicalEmployees.forEach(emp => employeeMap.set(emp.id, emp));
-    return Array.from(employeeMap.values());
+  // [LOGICA CHEIE 2] Creăm o listă de angajați care sunt afișați în panoul de selecție.
+  // Aceasta exclude angajații deja inactivi din lista completă.
+  const activeEmployeesForSelection = useMemo(() => {
+    const allEmps = new Map<string, any>();
+    // Construim o listă unică din toate sursele
+    employees.forEach(emp => allEmps.set(emp.id, emp));
+    historicalEmployees.forEach(emp => allEmps.set(emp.id, emp));
+    
+    // Filtrăm pentru a păstra DOAR angajații activi
+    return Array.from(allEmps.values()).filter(emp => emp.is_active);
   }, [employees, historicalEmployees]);
 
-  useEffect(() => {
-    const isStoreManager = profile?.role === 'STORE_MANAGER';
-    if (isStoreManager && profile.store_id && stores.length === 1 && timesheetData.storeId !== profile.store_id) {
-      onUpdate({ storeId: profile.store_id, entries: [] });
-    }
-  }, [profile, stores, timesheetData.storeId, onUpdate]);
-
-  const handleDelegationChange = () => {
-    refetchEmployees();
-  };
+  // [LOGICA CHEIE 3] Creăm o listă de ID-uri care sunt selectate ÎN PREZENT în grilă
+  // ȘI care sunt încă active. Aceasta va controla butonul de dezactivare în masă.
+  const activeSelectedIds = useMemo(() => 
+    selectedIdsFromGrid.filter(id => 
+      // Verificăm dacă ID-ul selectat există în lista noastră de angajați activi
+      activeEmployeesForSelection.some(emp => emp.id === id)
+    ),
+    [selectedIdsFromGrid, activeEmployeesForSelection]
+  );
   
+  // Handler-ul pentru selecție (când utilizatorul bifează/debifează în EmployeeSelector)
+  // rămâne neschimbat. El controlează ce este în grila de jos.
   const handleEmployeeSelection = (newlySelectedIds: string[]) => {
-    const selectedEmployeeObjects = allAvailableEmployees.filter((emp) => 
-      newlySelectedIds.includes(emp.id)
-    );
+    // Luăm în considerare toți angajații disponibili (activi și inactivi) pentru a reconstrui corect grila
+    const allAvailableEmployees = new Map<string, any>();
+    employees.forEach(emp => allAvailableEmployees.set(emp.id, emp));
+    historicalEmployees.forEach(emp => allAvailableEmployees.set(emp.id, emp));
+    
+    const selectedEmployeeObjects = newlySelectedIds
+      .map(id => allAvailableEmployees.get(id))
+      .filter(Boolean); // Eliminăm orice posibil ID invalid
 
     if (selectedEmployeeObjects.length === 0) { 
       onUpdate({ entries: [] }); 
@@ -100,17 +139,7 @@ export function TimesheetControls({
       
       const days = dateRange.reduce((acc, date) => {
         const dateKey = formatDateLocal(date);
-        
-        acc[dateKey] = currentDays?.[dateKey] || 
-                      savedDays?.[dateKey] || 
-                      { 
-                        timeInterval: '', 
-                        startTime: '', 
-                        endTime: '', 
-                        hours: 0, 
-                        status: 'alege' as DayStatus, 
-                        notes: '' 
-                      };
+        acc[dateKey] = currentDays?.[dateKey] || savedDays?.[dateKey] || { timeInterval: '', startTime: '', endTime: '', hours: 0, status: 'alege' as DayStatus, notes: '' };
         return acc;
       }, {} as Record<string, any>);
 
@@ -131,20 +160,13 @@ export function TimesheetControls({
       new Date(timesheetData.endDate)
     );
     
-    const newEntry = {
+    const newEntry: TimesheetEntry = {
       employeeId: newEmployee.id,
       employeeName: newEmployee.full_name,
       position: newEmployee.position || 'Staff',
       days: dateRange.reduce((acc, date) => {
         const dateKey = formatDateLocal(date);
-        acc[dateKey] = { 
-          timeInterval: '', 
-          startTime: '', 
-          endTime: '', 
-          hours: 0, 
-          status: 'alege' as DayStatus, 
-          notes: '' 
-        };
+        acc[dateKey] = { timeInterval: '', startTime: '', endTime: '', hours: 0, status: 'alege' as DayStatus, notes: '' };
         return acc;
       }, {} as Record<string, any>),
     };
@@ -153,6 +175,17 @@ export function TimesheetControls({
     refetchEmployees();
   };
   
+  const handleDelegationChange = () => {
+    refetchEmployees();
+  };
+
+  useEffect(() => {
+    const isStoreManager = profile?.role === 'STORE_MANAGER';
+    if (isStoreManager && profile.store_id && stores.length === 1 && timesheetData.storeId !== profile.store_id) {
+      onUpdate({ storeId: profile.store_id, entries: [] });
+    }
+  }, [profile, stores, timesheetData.storeId, onUpdate]);
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
       <div className="flex justify-between items-center border-b border-gray-200 pb-4">
@@ -160,7 +193,9 @@ export function TimesheetControls({
           {existingTimesheetId ? 'Editare Pontaj' : 'Creare Pontaj Nou'}
         </h3>
         <Button variant="outline" size="sm" onClick={onCancel}>
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
           Înapoi la Listă
         </Button>
       </div>
@@ -177,22 +212,27 @@ export function TimesheetControls({
       
       <EmployeeSelectionPanel
         storeId={timesheetData.storeId}
-        selectedEmployeeIds={selectedEmployeeIds}
-        employees={allAvailableEmployees}
-        regularEmployees={regularEmployees}
-        delegatedEmployees={delegatedEmployees}
-        historicalEmployees={historicalEmployees}
+        selectedEmployeeIds={selectedIdsFromGrid} 
+        employees={activeEmployeesForSelection} 
+        activeSelectedIdsForBulkDelete={activeSelectedIds}
+        regularEmployees={regularEmployees.filter(e => (e as any).is_active)}
+        delegatedEmployees={delegatedEmployees.filter(e => (e as any).is_active)}
+        historicalEmployees={historicalEmployees.filter(e => (e as any).is_active)}
         isLoading={loadingEmployees}
         isSaving={isSaving}
         hasStoreSelected={hasStoreSelected}
         existingTimesheetId={existingTimesheetId}
+        showDelete={!readOnly}
+        readOnly={readOnly}
         onSelectionChange={handleEmployeeSelection}
         onEmployeeAdded={handleEmployeeAdded}
+        onEmployeeDelete={handleEmployeeDelete}
+        onEmployeeBulkDelete={handleBulkEmployeeDelete} 
       />
       
       <EmployeeDelegationPanel
         employees={employees}
-        selectedEmployeeIds={selectedEmployeeIds}
+        selectedEmployeeIds={selectedIdsFromGrid}
         regularEmployees={regularEmployees}
         delegatedEmployees={delegatedEmployees}
         onDelegationChange={handleDelegationChange} 
