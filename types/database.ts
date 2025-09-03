@@ -1,4 +1,5 @@
-// types/database.ts - Updated for multi-employee timesheets with time intervals
+// types/database.ts
+
 export type Json =
   | string
   | number
@@ -44,7 +45,7 @@ export interface TimesheetDailyEntries {
     periodDays: number
     hasTimeIntervals: boolean  // ✅ NEW: Flag to indicate interval support
   }
-  
+
   // ✅ ENHANCED: Employee metadata separate from daily data
   employees: Record<string, {
     id: string
@@ -55,7 +56,7 @@ export interface TimesheetDailyEntries {
     original_zone_id?: string
     current_store_id?: string
   }>
-  
+
   // ✅ ENHANCED: Daily data by date, then by employee ID with time intervals
   dailyData: Record<string, Record<string, {
     employee_id: string
@@ -106,6 +107,34 @@ export interface SaveResult {
     warnings: any[];
     setupErrors: any[];
   };
+}
+
+
+export interface EmployeeTransfers {
+  Row: {
+    id: string
+    employee_id: string
+    from_store_id: string
+    to_store_id: string
+    from_zone_id: string
+    to_zone_id: string
+    initiated_by: string
+    status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
+    approved_by: string | null
+    transfer_date: string
+    notes: string | null
+    created_at: string
+    updated_at: string
+    completed_at: string | null
+  }
+  Insert: Omit<EmployeeTransfers['Row'], 'id' | 'created_at' | 'updated_at' | 'completed_at'> & {
+    id?: string
+    status?: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
+    created_at?: string
+    updated_at?: string
+    completed_at?: string | null
+  }
+  Update: Partial<Omit<EmployeeTransfers['Row'], 'id'>>
 }
 
 // ✅ ENHANCED: Legacy DailyEntry for backward compatibility with time intervals
@@ -164,6 +193,7 @@ namespace DatabaseTables {
       store_id: string
       zone_id: string
       created_at: string
+      is_active: boolean // Added based on usage in your validation
     }
     Insert: Omit<Employees['Row'], 'id' | 'created_at'> & {
       id?: string
@@ -290,111 +320,24 @@ export interface Database {
       stores: DatabaseTables.Stores
       zones: DatabaseTables.Zones
       employee_delegations: DatabaseTables.EmployeeDelegations
+      employee_transfers: EmployeeTransfers // Added for clarity
       timesheets: DatabaseTables.Timesheets
       absence_types: DatabaseTables.AbsenceTypes
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: { // <<-- THE ONLY ADDITION IS HERE
+      complete_employee_transfer: {
+        Args: {
+          transfer_id: string
+        }
+        Returns: boolean
+      }
+    }
     Enums: {
       user_role: UserRole
       delegation_status: DelegationStatus
+      transfer_status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
     }
     CompositeTypes: Record<string, never>
   }
 }
-
-// Export specific table types for better tree-shaking
-export type ProfileRow = DatabaseTables.Profiles['Row']
-export type EmployeeRow = DatabaseTables.Employees['Row']
-export type StoreRow = DatabaseTables.Stores['Row']
-export type ZoneRow = DatabaseTables.Zones['Row']
-export type DelegationRow = DatabaseTables.EmployeeDelegations['Row']
-export type TimesheetRow = DatabaseTables.Timesheets['Row']
-export type AbsenceTypeRow = DatabaseTables.AbsenceTypes['Row']
-
-// ✅ ENHANCED: Helper types for working with multi-employee timesheets with time intervals
-export interface TimesheetWithDetails extends TimesheetRow {
-  store?: { id: string; name: string }
-  zone?: { id: string; name: string }
-  created_by_user?: { id: string; full_name: string }
-  // Note: employees are now stored in daily_entries with time interval support
-}
-
-// ✅ ENHANCED: Type for reconstructing grid from database with time intervals
-export interface TimesheetGridFromDB {
-  timesheetId: string
-  gridTitle: string | null
-  storeId: string
-  storeName?: string
-  zoneId: string
-  zoneName?: string
-  periodStart: string
-  periodEnd: string
-  employeeCount: number
-  totalHours: number
-  schemaVersion: string // ✅ NEW: Version tracking
-  employees: Array<{
-    id: string
-    name: string
-    position: string
-    employee_code?: string
-    totalHours: number
-    daysData: Record<string, {
-      timeInterval: string    // ✅ NEW: Original interval
-      startTime: string      // ✅ NEW: Parsed start time
-      endTime: string        // ✅ NEW: Parsed end time
-      hours: number
-      status: string
-      notes: string
-    }>
-  }>
-  createdAt: string
-  updatedAt: string
-  createdBy?: string
-}
-
-// ✅ NEW: Type for timesheet summary/list view with interval support
-export interface TimesheetSummary {
-  id: string
-  gridTitle: string
-  storeName: string
-  employeeCount: number
-  totalHours: number
-  periodStart: string
-  periodEnd: string
-  createdAt: string
-  lastUpdated: string
-  hasTimeIntervals: boolean  // ✅ NEW: Indicates if this timesheet uses intervals
-  schemaVersion: string      // ✅ NEW: Data format version
-}
-
-// ✅ NEW: Migration helper types for upgrading existing timesheets
-export interface TimesheetMigrationInfo {
-  timesheetId: string
-  currentVersion: string
-  targetVersion: string
-  requiresMigration: boolean
-  migrationSteps: string[]
-}
-
-// ✅ NEW: Time interval constants and validation patterns
-export const TIME_INTERVAL_PATTERNS = {
-  // Matches formats like: "9-17", "10-14", "09-17"
-  SIMPLE_RANGE: /^(\d{1,2})-(\d{1,2})$/,
-  // Matches formats like: "9:00-17:00", "10:30-14:30"
-  TIME_RANGE: /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/,
-  // Matches formats like: "9am-5pm", "10:30am-2:30pm"
-  AMPM_RANGE: /^(\d{1,2})(?::(\d{2}))?(am|pm)-(\d{1,2})(?::(\d{2}))?(am|pm)$/i
-} as const
-
-// ✅ NEW: Default values for time intervals
-export const TIME_INTERVAL_DEFAULTS = {
-  SCHEMA_VERSION: '2.0',
-  DEFAULT_START_TIME: '09:00',
-  DEFAULT_END_TIME: '17:00',
-  DEFAULT_INTERVAL: '9-17',
-  MIN_HOUR: 0,
-  MAX_HOUR: 23,
-  MIN_MINUTE: 0,
-  MAX_MINUTE: 59
-} as const

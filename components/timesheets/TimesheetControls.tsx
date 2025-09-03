@@ -1,4 +1,4 @@
-// FILE: components/timesheets/TimesheetControls.tsx - FINAL VERSION WITH REFINED LOGIC
+// components/timesheets/TimesheetControls.tsx - Updated with Transfer Integration
 'use client'
 
 import { useEffect, useMemo, useCallback } from 'react'
@@ -12,6 +12,7 @@ import { PeriodAndStoreSelector } from './PeriodAndStoreSelector'
 import { EmployeeSelectionPanel } from './EmployeeSelectionPanel'
 import { EmployeeDelegationPanel } from './EmployeeDelegationPanel'
 import { DelegationInfoPanel } from './DelegationInfoPanel'
+import { TransferStatusPanel } from '@/components/transfer/TransferStatusPanel' // NEW: Transfer status panel
 import { Button } from '@/components/ui/Button'
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -43,6 +44,7 @@ export function TimesheetControls({
     regularEmployees,
     delegatedEmployees,
     historicalEmployees,
+    employeesWithActiveTransfers, // NEW: Employees with active transfers
     isLoading: loadingEmployees,
     refetch: refetchEmployees,
     hasStoreSelected,
@@ -50,8 +52,6 @@ export function TimesheetControls({
     storeId: timesheetData.storeId,
     includeDelegated: true,
     timesheetId: existingTimesheetId,
-    // [LOGICA CHEIE 1] Cerem hook-ului să includă inactivii,
-    // astfel încât să avem control total asupra filtrării mai jos.
     includeInactive: !!existingTimesheetId, 
   });
 
@@ -81,39 +81,33 @@ export function TimesheetControls({
     [timesheetData.entries]
   );
 
-  // [LOGICA CHEIE 2] Creăm o listă de angajați care sunt afișați în panoul de selecție.
+  // Creăm o listă de angajați care sunt afișați în panoul de selecție.
   // Aceasta exclude angajații deja inactivi din lista completă.
   const activeEmployeesForSelection = useMemo(() => {
     const allEmps = new Map<string, any>();
-    // Construim o listă unică din toate sursele
     employees.forEach(emp => allEmps.set(emp.id, emp));
     historicalEmployees.forEach(emp => allEmps.set(emp.id, emp));
     
-    // Filtrăm pentru a păstra DOAR angajații activi
     return Array.from(allEmps.values()).filter(emp => emp.is_active);
   }, [employees, historicalEmployees]);
 
-  // [LOGICA CHEIE 3] Creăm o listă de ID-uri care sunt selectate ÎN PREZENT în grilă
-  // ȘI care sunt încă active. Aceasta va controla butonul de dezactivare în masă.
+  // Creăm o listă de ID-uri care sunt selectate ÎN PREZENT în grilă ȘI care sunt încă active.
   const activeSelectedIds = useMemo(() => 
     selectedIdsFromGrid.filter(id => 
-      // Verificăm dacă ID-ul selectat există în lista noastră de angajați activi
       activeEmployeesForSelection.some(emp => emp.id === id)
     ),
     [selectedIdsFromGrid, activeEmployeesForSelection]
   );
   
   // Handler-ul pentru selecție (când utilizatorul bifează/debifează în EmployeeSelector)
-  // rămâne neschimbat. El controlează ce este în grila de jos.
   const handleEmployeeSelection = (newlySelectedIds: string[]) => {
-    // Luăm în considerare toți angajații disponibili (activi și inactivi) pentru a reconstrui corect grila
     const allAvailableEmployees = new Map<string, any>();
     employees.forEach(emp => allAvailableEmployees.set(emp.id, emp));
     historicalEmployees.forEach(emp => allAvailableEmployees.set(emp.id, emp));
     
     const selectedEmployeeObjects = newlySelectedIds
       .map(id => allAvailableEmployees.get(id))
-      .filter(Boolean); // Eliminăm orice posibil ID invalid
+      .filter(Boolean);
 
     if (selectedEmployeeObjects.length === 0) { 
       onUpdate({ entries: [] }); 
@@ -175,7 +169,13 @@ export function TimesheetControls({
     refetchEmployees();
   };
   
+  // Existing delegation change handler
   const handleDelegationChange = () => {
+    refetchEmployees();
+  };
+
+  // NEW: Transfer change handler
+  const handleTransferChange = () => {
     refetchEmployees();
   };
 
@@ -185,6 +185,14 @@ export function TimesheetControls({
       onUpdate({ storeId: profile.store_id, entries: [] });
     }
   }, [profile, stores, timesheetData.storeId, onUpdate]);
+
+  // NEW: Check if there are employees with active transfers that might affect the timesheet
+  const employeesWithTransfersInTimesheet = useMemo(() => {
+    return selectedIdsFromGrid
+      .map(id => employees.find(emp => emp.id === id))
+      .filter(emp => emp?.hasActiveTransfer)
+      .filter(Boolean);
+  }, [selectedIdsFromGrid, employees]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
@@ -230,15 +238,59 @@ export function TimesheetControls({
         onEmployeeBulkDelete={handleBulkEmployeeDelete} 
       />
       
+      {/* Updated EmployeeDelegationPanel with Transfer Integration */}
       <EmployeeDelegationPanel
         employees={employees}
         selectedEmployeeIds={selectedIdsFromGrid}
         regularEmployees={regularEmployees}
         delegatedEmployees={delegatedEmployees}
         onDelegationChange={handleDelegationChange} 
+        onTransferChange={handleTransferChange} // NEW: Transfer callback
       />
       
+      {/* Existing Delegation Info Panel */}
       <DelegationInfoPanel delegatedEmployees={delegatedEmployees} />
+
+      {/* NEW: Transfer Warning Panel for employees with active transfers */}
+      {employeesWithTransfersInTimesheet.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <svg className="w-5 h-5 text-orange-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-orange-800">Atenție: Angajați cu Transferuri Active</h4>
+              <div className="text-sm text-orange-700 mt-1">
+                <p>
+                  {employeesWithTransfersInTimesheet.length} angajat{employeesWithTransfersInTimesheet.length !== 1 ? 'i' : ''} din acest pontaj 
+                  {employeesWithTransfersInTimesheet.length === 1 ? ' are' : ' au'} transferuri active. 
+                  Acești angajați vor fi mutați permanent la alte magazine când transferurile sunt finalizate.
+                </p>
+                <div className="mt-2 space-y-1">
+                  {employeesWithTransfersInTimesheet.map(emp => (
+                    emp ? (
+                      <div key={emp.id} className="text-xs">
+                        • <strong>{emp.full_name}</strong> - Transfer {emp.transfer?.status} către {emp.transfer?.to_store_name} 
+                        ({new Date(emp.transfer?.transfer_date || '').toLocaleDateString()})
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Transfer Status Panel - show if user has transfer permissions and there are relevant transfers */}
+      {timesheetData.storeId && (
+        <TransferStatusPanel 
+          showPendingApprovals={true}
+          showOverdueTransfers={false} // Don't show overdue in timesheet context
+          showReadyForExecution={false} // Don't show ready in timesheet context
+          className="border-t pt-4"
+        />
+      )}
     </div>
   );
 }
