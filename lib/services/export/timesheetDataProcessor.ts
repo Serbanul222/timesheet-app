@@ -1,10 +1,11 @@
-// lib/services/export/timesheetDataProcessor.ts
+// lib/services/export/timesheetDataProcessor.ts - Fixed for your legacy format
 import { TimesheetRow } from '@/types/database'
 import { ExportOptions, ProcessedTimesheetData } from '@/types/exports'
 import { format, parseISO, isWeekend } from 'date-fns'
 
 /**
  * Processes raw timesheet data for export
+ * Fixed to properly handle your legacy format: { empId: { name, position, days: { date: {...} } } }
  */
 export class TimesheetDataProcessor {
   
@@ -16,125 +17,248 @@ export class TimesheetDataProcessor {
     options: ExportOptions = {}
   ): ProcessedTimesheetData {
     console.log(`📊 Processing ${timesheets.length} timesheets for export`)
+    console.log('📋 Sample timesheet structure:', timesheets[0]?.daily_entries)
     
-    // Apply filters
+    // Apply filters - but be more lenient with date matching
     const filteredTimesheets = this.applyFilters(timesheets, options)
+    console.log(`🔍 After filtering: ${filteredTimesheets.length} timesheets`)
     
-    // Extract all data
+    // Extract all data with detailed logging
     const employees = this.extractEmployees(filteredTimesheets)
+    console.log(`👥 Extracted ${employees.length} employees:`, employees.map(e => e.name))
+    
     const stores = this.extractStores(filteredTimesheets, employees)
+    console.log(`🏪 Extracted ${stores.length} stores`)
+    
     const dailyEntries = this.extractDailyEntries(filteredTimesheets, options)
+    console.log(`📅 Extracted ${dailyEntries.length} daily entries`)
+    
     const summary = this.calculateSummary(filteredTimesheets, employees, dailyEntries)
     
-    return {
+    const result = {
       summary,
       timesheets: this.formatTimesheets(filteredTimesheets),
       employees,
       stores,
       dailyEntries
     }
+    
+    console.log('✅ Final processed data:', {
+      timesheets: result.timesheets.length,
+      employees: result.employees.length,
+      stores: result.stores.length,
+      dailyEntries: result.dailyEntries.length,
+      totalHours: result.summary.totalHours
+    })
+    
+    return result
   }
   
   /**
-   * Apply filters to timesheet data
+   * Apply filters - FIXED to be more lenient with date matching
    */
   private static applyFilters(
     timesheets: TimesheetRow[],
     options: ExportOptions
   ): TimesheetRow[] {
     let filtered = [...timesheets]
+    console.log('🔧 Applying filters...')
     
-    // Date range filter
+    // For your case, let's be more lenient with date filtering
+    // Since you might have individual daily entries that fall within the range
     if (options.dateRange) {
+      const { startDate, endDate } = options.dateRange
+      console.log(`📅 Filtering by date range: ${startDate} to ${endDate}`)
+      
       filtered = filtered.filter(ts => {
-        const start = parseISO(ts.period_start)
-        const end = parseISO(ts.period_end)
-        const filterStart = parseISO(options.dateRange!.startDate)
-        const filterEnd = parseISO(options.dateRange!.endDate)
+        // Check if timesheet has ANY daily entries within the date range
+        const dailyEntries = ts.daily_entries as any
+        if (!dailyEntries || typeof dailyEntries !== 'object') {
+          console.log(`❌ Timesheet ${ts.id} has no daily entries`)
+          return false
+        }
         
-        return start >= filterStart && end <= filterEnd
+        let hasValidDates = false
+        
+        // Look through all employees and their days
+        Object.values(dailyEntries).forEach((empData: any) => {
+          if (empData?.days) {
+            Object.keys(empData.days).forEach(dateKey => {
+              try {
+                const entryDate = parseISO(dateKey)
+                const filterStart = parseISO(startDate)
+                const filterEnd = parseISO(endDate)
+                
+                if (entryDate >= filterStart && entryDate <= filterEnd) {
+                  hasValidDates = true
+                  console.log(`✅ Found valid date ${dateKey} in timesheet ${ts.id}`)
+                }
+              } catch (error) {
+                console.error('Date parsing error:', error, dateKey)
+              }
+            })
+          }
+        })
+        
+        return hasValidDates
       })
+      
+      console.log(`📅 Date filter result: ${filtered.length}/${timesheets.length} timesheets`)
     }
     
-    // Store filter
-    if (options.storeIds?.length) {
-      filtered = filtered.filter(ts => options.storeIds!.includes(ts.store_id))
-    }
-    
-    // Zone filter  
-    if (options.zoneIds?.length) {
-      filtered = filtered.filter(ts => options.zoneIds!.includes(ts.zone_id))
-    }
-    
-    // Limit rows if specified
-    if (options.maxRows) {
-      filtered = filtered.slice(0, options.maxRows)
-    }
-    
-    console.log(`🔍 Filtered ${timesheets.length} → ${filtered.length} timesheets`)
     return filtered
   }
   
   /**
-   * Extract employee data from timesheets
+   * Extract employee data - FIXED for your legacy format
    */
   private static extractEmployees(timesheets: TimesheetRow[]): ProcessedTimesheetData['employees'] {
     const employeeMap = new Map<string, any>()
+    console.log('👥 Extracting employees from timesheets...')
     
-    timesheets.forEach(timesheet => {
+    timesheets.forEach((timesheet, index) => {
+      console.log(`📋 Processing timesheet ${index + 1}/${timesheets.length}: ${timesheet.id}`)
+      
       const dailyEntries = timesheet.daily_entries as any
-      if (!dailyEntries || typeof dailyEntries !== 'object') return
-      
-      const format = this.detectDailyEntriesFormat(dailyEntries)
-      
-      if (format === 'new' && dailyEntries._employees) {
-        // New format: { _employees: { [id]: metadata }, [date]: { [id]: data } }
-        Object.entries(dailyEntries._employees).forEach(([empId, empData]: [string, any]) => {
-          if (!employeeMap.has(empId)) {
-            const totalHours = this.calculateEmployeeTotalHours(empId, dailyEntries)
-            const daysWorked = this.calculateEmployeeDaysWorked(empId, dailyEntries)
-            
-            employeeMap.set(empId, {
-              id: empId,
-              name: empData.name,
-              position: empData.position || 'Staff',
-              employeeCode: empData.employee_code,
-              storeId: timesheet.store_id,
-              storeName: timesheet.store?.name || 'Unknown Store',
-              totalHours,
-              daysWorked,
-              isDelegated: this.isEmployeeDelegated(empData),
-              delegationInfo: this.getDelegationInfo(empData)
-            })
-          }
-        })
-      } else {
-        // Legacy format: { [empId]: { name, days: {...} } }
-        Object.entries(dailyEntries).forEach(([empId, empData]: [string, any]) => {
-          if (empId.startsWith('_') || !empData?.name) return
-          
-          if (!employeeMap.has(empId)) {
-            const totalHours = this.calculateEmployeeTotalHoursLegacy(empData.days || {})
-            const daysWorked = Object.keys(empData.days || {}).length
-            
-            employeeMap.set(empId, {
-              id: empId,
-              name: empData.name,
-              position: empData.position || 'Staff',
-              employeeCode: empData.employee_code,
-              storeId: timesheet.store_id,
-              storeName: timesheet.store?.name || 'Unknown Store',
-              totalHours,
-              daysWorked,
-              isDelegated: false,
-              delegationInfo: undefined
-            })
-          }
-        })
+      if (!dailyEntries || typeof dailyEntries !== 'object') {
+        console.log(`⚠️ Timesheet ${timesheet.id} has no daily_entries`)
+        return
       }
+      
+      console.log(`📊 Daily entries keys:`, Object.keys(dailyEntries))
+      
+      // Process legacy format: { empId: { name, position, days: {...} } }
+      Object.entries(dailyEntries).forEach(([empId, empData]: [string, any]) => {
+        console.log(`👤 Processing employee entry: ${empId}`, empData)
+        
+        // Skip invalid entries
+        if (!empData || typeof empData !== 'object' || !empData.name) {
+          console.log(`⚠️ Skipping invalid employee: ${empId}`)
+          return
+        }
+        
+        if (!employeeMap.has(empId)) {
+          const days = empData.days || {}
+          const totalHours = this.calculateEmployeeTotalHoursLegacy(days)
+          const daysWorked = Object.keys(days).filter(dateKey => {
+            const dayData = days[dateKey]
+            return dayData && dayData.hours > 0
+          }).length
+          
+          const employee = {
+            id: empId,
+            name: empData.name,
+            position: empData.position || 'Staff',
+            employeeCode: empId, // Use UUID as employee code
+            storeId: timesheet.store_id,
+            storeName: this.getStoreName(timesheet),
+            totalHours,
+            daysWorked,
+            isDelegated: false,
+            delegationInfo: undefined
+          }
+          
+          employeeMap.set(empId, employee)
+          console.log(`✅ Added employee: ${employee.name} (${empId}) - ${totalHours}h over ${daysWorked} days`)
+          console.log(`📊 Employee days:`, Object.keys(days))
+        }
+      })
     })
     
-    return Array.from(employeeMap.values())
+    const employees = Array.from(employeeMap.values())
+    console.log(`👥 Final employee extraction: ${employees.length} employees`)
+    return employees
+  }
+  
+  /**
+   * Extract daily entries - FIXED for your legacy format
+   */
+  private static extractDailyEntries(
+    timesheets: TimesheetRow[],
+    options: ExportOptions
+  ): ProcessedTimesheetData['dailyEntries'] {
+    const entries: ProcessedTimesheetData['dailyEntries'] = []
+    console.log('📅 Extracting daily entries...')
+    
+    timesheets.forEach((timesheet, tsIndex) => {
+      console.log(`📋 Processing daily entries for timesheet ${tsIndex + 1}/${timesheets.length}`)
+      
+      const dailyEntries = timesheet.daily_entries as any
+      if (!dailyEntries || typeof dailyEntries !== 'object') {
+        console.log(`⚠️ No daily entries found for timesheet ${timesheet.id}`)
+        return
+      }
+      
+      // Process legacy format
+      Object.entries(dailyEntries).forEach(([empId, empData]: [string, any]) => {
+        if (!empData?.name || !empData.days) {
+          console.log(`⚠️ Skipping invalid employee entry: ${empId}`)
+          return
+        }
+        
+        console.log(`👤 Processing daily entries for employee ${empData.name} (${empId})`)
+        console.log(`📊 Employee has ${Object.keys(empData.days).length} day entries`)
+        
+        Object.entries(empData.days).forEach(([dateKey, dayData]: [string, any]) => {
+          if (!dayData || typeof dayData !== 'object') {
+            console.log(`⚠️ Invalid day data for ${empId} on ${dateKey}`)
+            return
+          }
+          
+          console.log(`📅 Processing ${dateKey}:`, dayData)
+          
+          // Check if this entry falls within our date filter
+          if (options.dateRange) {
+            try {
+              const entryDate = parseISO(dateKey)
+              const filterStart = parseISO(options.dateRange.startDate)
+              const filterEnd = parseISO(options.dateRange.endDate)
+              
+              if (entryDate < filterStart || entryDate > filterEnd) {
+                console.log(`⚠️ Date ${dateKey} outside filter range, skipping`)
+                return
+              }
+            } catch (error) {
+              console.error('Date validation error:', error)
+              return
+            }
+          }
+          
+          const hasData = (dayData.hours && dayData.hours > 0) || 
+                         (dayData.status && dayData.status !== 'alege') || 
+                         (dayData.notes && dayData.notes.trim())
+          
+          if (!options.includeEmptyDays && !hasData) {
+            console.log(`📅 Skipping empty day: ${dateKey}`)
+            return
+          }
+          
+          const entry = {
+            timesheetId: timesheet.id,
+            employeeId: empId,
+            employeeName: empData.name,
+            position: empData.position || 'Staff',
+            storeId: timesheet.store_id,
+            storeName: this.getStoreName(timesheet),
+            date: dateKey,
+            dayOfWeek: format(parseISO(dateKey), 'EEEE'),
+            timeInterval: dayData.timeInterval || '',
+            hours: dayData.hours || 0,
+            status: dayData.status || 'alege',
+            statusDescription: this.getStatusDescription(dayData.status || 'alege'),
+            notes: options.includeNotes ? (dayData.notes || '') : undefined,
+            isWeekend: isWeekend(parseISO(dateKey)),
+            isDelegated: false
+          }
+          
+          entries.push(entry)
+          console.log(`✅ Added entry: ${entry.employeeName} on ${dateKey} - ${entry.hours}h (${entry.timeInterval})`)
+        })
+      })
+    })
+    
+    console.log(`📅 Extracted total of ${entries.length} daily entries`)
+    return entries
   }
   
   /**
@@ -145,21 +269,25 @@ export class TimesheetDataProcessor {
     employees: ProcessedTimesheetData['employees']
   ): ProcessedTimesheetData['stores'] {
     const storeMap = new Map<string, any>()
+    console.log('🏪 Extracting store data...')
     
     timesheets.forEach(timesheet => {
       const storeEmployees = employees.filter(emp => emp.storeId === timesheet.store_id)
       const totalHours = storeEmployees.reduce((sum, emp) => sum + emp.totalHours, 0)
       
       if (!storeMap.has(timesheet.store_id)) {
-        storeMap.set(timesheet.store_id, {
+        const store = {
           id: timesheet.store_id,
-          name: timesheet.store?.name || 'Unknown Store',
+          name: this.getStoreName(timesheet),
           zoneId: timesheet.zone_id,
-          zoneName: timesheet.zone?.name || 'Unknown Zone',
+          zoneName: this.getZoneName(timesheet),
           employeeCount: storeEmployees.length,
           totalHours,
           timesheetCount: 1
-        })
+        }
+        
+        storeMap.set(timesheet.store_id, store)
+        console.log(`🏪 Added store: ${store.name} - ${store.employeeCount} employees, ${totalHours}h`)
       } else {
         const store = storeMap.get(timesheet.store_id)
         store.timesheetCount++
@@ -170,120 +298,6 @@ export class TimesheetDataProcessor {
   }
   
   /**
-   * Extract daily entries for detailed view
-   */
-  private static extractDailyEntries(
-    timesheets: TimesheetRow[],
-    options: ExportOptions
-  ): ProcessedTimesheetData['dailyEntries'] {
-    const entries: ProcessedTimesheetData['dailyEntries'] = []
-    
-    timesheets.forEach(timesheet => {
-      const dailyEntries = timesheet.daily_entries as any
-      if (!dailyEntries || typeof dailyEntries !== 'object') return
-      
-      const format = this.detectDailyEntriesFormat(dailyEntries)
-      
-      if (format === 'new') {
-        this.processDailyEntriesNew(timesheet, dailyEntries, entries, options)
-      } else {
-        this.processDailyEntriesLegacy(timesheet, dailyEntries, entries, options)
-      }
-    })
-    
-    // Sort by date and employee name
-    entries.sort((a, b) => {
-      const dateComparison = a.date.localeCompare(b.date)
-      return dateComparison !== 0 ? dateComparison : a.employeeName.localeCompare(b.employeeName)
-    })
-    
-    return entries
-  }
-  
-  /**
-   * Process new format daily entries
-   */
-  private static processDailyEntriesNew(
-    timesheet: TimesheetRow,
-    dailyEntries: any,
-    entries: ProcessedTimesheetData['dailyEntries'],
-    options: ExportOptions
-  ): void {
-    Object.keys(dailyEntries).forEach(dateKey => {
-      if (dateKey.startsWith('_')) return // Skip metadata
-      
-      const dateEntry = dailyEntries[dateKey]
-      if (!dateEntry || typeof dateEntry !== 'object') return
-      
-      Object.entries(dateEntry).forEach(([empId, dayData]: [string, any]) => {
-        if (!dayData || typeof dayData !== 'object') return
-        
-        const empMetadata = dailyEntries._employees?.[empId]
-        const hasData = dayData.hours > 0 || dayData.status !== 'alege' || dayData.notes?.trim()
-        
-        if (!options.includeEmptyDays && !hasData) return
-        
-        entries.push({
-          timesheetId: timesheet.id,
-          employeeId: empId,
-          employeeName: empMetadata?.name || dayData.employee_name || 'Unknown',
-          position: empMetadata?.position || dayData.position || 'Staff',
-          storeId: timesheet.store_id,
-          storeName: timesheet.store?.name || 'Unknown Store',
-          date: dateKey,
-          dayOfWeek: format(parseISO(dateKey), 'EEEE'),
-          timeInterval: dayData.timeInterval || '',
-          hours: dayData.hours || 0,
-          status: dayData.status || 'alege',
-          statusDescription: this.getStatusDescription(dayData.status || 'alege'),
-          notes: options.includeNotes ? (dayData.notes || '') : undefined,
-          isWeekend: isWeekend(parseISO(dateKey)),
-          isDelegated: this.isEmployeeDelegated(empMetadata)
-        })
-      })
-    })
-  }
-  
-  /**
-   * Process legacy format daily entries
-   */
-  private static processDailyEntriesLegacy(
-    timesheet: TimesheetRow,
-    dailyEntries: any,
-    entries: ProcessedTimesheetData['dailyEntries'],
-    options: ExportOptions
-  ): void {
-    Object.entries(dailyEntries).forEach(([empId, empData]: [string, any]) => {
-      if (empId.startsWith('_') || !empData?.name || !empData.days) return
-      
-      Object.entries(empData.days).forEach(([dateKey, dayData]: [string, any]) => {
-        if (!dayData || typeof dayData !== 'object') return
-        
-        const hasData = dayData.hours > 0 || dayData.status !== 'alege' || dayData.notes?.trim()
-        if (!options.includeEmptyDays && !hasData) return
-        
-        entries.push({
-          timesheetId: timesheet.id,
-          employeeId: empId,
-          employeeName: empData.name,
-          position: empData.position || 'Staff',
-          storeId: timesheet.store_id,
-          storeName: timesheet.store?.name || 'Unknown Store',
-          date: dateKey,
-          dayOfWeek: format(parseISO(dateKey), 'EEEE'),
-          timeInterval: dayData.timeInterval || '',
-          hours: dayData.hours || 0,
-          status: dayData.status || 'alege',
-          statusDescription: this.getStatusDescription(dayData.status || 'alege'),
-          notes: options.includeNotes ? (dayData.notes || '') : undefined,
-          isWeekend: isWeekend(parseISO(dateKey)),
-          isDelegated: false
-        })
-      })
-    })
-  }
-  
-  /**
    * Calculate summary statistics
    */
   private static calculateSummary(
@@ -291,10 +305,12 @@ export class TimesheetDataProcessor {
     employees: ProcessedTimesheetData['employees'],
     dailyEntries: ProcessedTimesheetData['dailyEntries']
   ): ProcessedTimesheetData['summary'] {
+    console.log('📊 Calculating summary statistics...')
+    
     const totalHours = employees.reduce((sum, emp) => sum + emp.totalHours, 0)
     const dates = dailyEntries.map(entry => entry.date).sort()
     
-    return {
+    const summary = {
       totalHours,
       totalEmployees: employees.length,
       totalTimesheets: timesheets.length,
@@ -304,6 +320,9 @@ export class TimesheetDataProcessor {
       },
       exportedAt: new Date().toISOString()
     }
+    
+    console.log('📊 Summary:', summary)
+    return summary
   }
   
   /**
@@ -314,9 +333,9 @@ export class TimesheetDataProcessor {
       id: ts.id,
       gridTitle: ts.grid_title || `Timesheet ${format(parseISO(ts.period_start), 'MMM yyyy')}`,
       storeId: ts.store_id,
-      storeName: ts.store?.name || 'Unknown Store',
+      storeName: this.getStoreName(ts),
       zoneId: ts.zone_id,
-      zoneName: ts.zone?.name || 'Unknown Zone',
+      zoneName: this.getZoneName(ts),
       periodStart: ts.period_start,
       periodEnd: ts.period_end,
       totalHours: ts.total_hours || 0,
@@ -327,57 +346,41 @@ export class TimesheetDataProcessor {
   }
   
   // Helper methods
-  private static detectDailyEntriesFormat(dailyEntries: any): 'new' | 'legacy' {
-    return dailyEntries._employees ? 'new' : 'legacy'
-  }
-  
-  private static calculateEmployeeTotalHours(empId: string, dailyEntries: any): number {
-    let total = 0
-    Object.keys(dailyEntries).forEach(dateKey => {
-      if (dateKey.startsWith('_')) return
-      const dayData = dailyEntries[dateKey]?.[empId]
-      if (dayData?.hours) total += dayData.hours
-    })
-    return total
-  }
-  
-  private static calculateEmployeeDaysWorked(empId: string, dailyEntries: any): number {
-    let days = 0
-    Object.keys(dailyEntries).forEach(dateKey => {
-      if (dateKey.startsWith('_')) return
-      const dayData = dailyEntries[dateKey]?.[empId]
-      if (dayData?.hours > 0) days++
-    })
-    return days
-  }
-  
   private static calculateEmployeeTotalHoursLegacy(days: any): number {
-    return Object.values(days).reduce((total: number, day: any) => {
-      return total + (day?.hours || 0)
-    }, 0)
-  }
-  
-  private static isEmployeeDelegated(empData: any): boolean {
-    return empData?.isDelegated || empData?.delegation !== undefined
-  }
-  
-  private static getDelegationInfo(empData: any): any {
-    if (!empData?.delegation) return undefined
-    return {
-      fromStore: empData.delegation.from_store_name,
-      toStore: empData.delegation.to_store_name,
-      validUntil: empData.delegation.valid_until
-    }
+    let total = 0
+    Object.values(days).forEach((day: any) => {
+      if (day?.hours && typeof day.hours === 'number') {
+        total += day.hours
+      }
+    })
+    console.log(`📊 Calculated legacy total hours: ${total}`)
+    return total
   }
   
   private static getStatusDescription(status: string): string {
     const statusMap: Record<string, string> = {
-      'alege': 'To be selected',
-      'CO': 'Time Off',
-      'CM': 'Medical Leave',
-      'dispensa': 'Dispensation',
-      'OFF': 'Day Off'
+      'alege': 'Alege',
+      'CO': 'Concediu Odihnă',
+      'CM': 'Concediu Medical',
+      'dispensa': 'Dispensă',
+      'OFF': 'Liber'
     }
     return statusMap[status] || status
+  }
+  
+  private static getStoreName(timesheet: TimesheetRow): string {
+    // Handle different possible store data structures
+    if (timesheet.store && typeof timesheet.store === 'object' && 'name' in timesheet.store) {
+      return (timesheet.store as { name: string }).name
+    }
+    return timesheet.store?.toString() || 'Unknown Store'
+  }
+  
+  private static getZoneName(timesheet: TimesheetRow): string {
+    // Handle different possible zone data structures
+    if (timesheet.zone && typeof timesheet.zone === 'object' && 'name' in timesheet.zone) {
+      return (timesheet.zone as { name: string }).name
+    }
+    return timesheet.zone?.toString() || 'Unknown Zone'
   }
 }

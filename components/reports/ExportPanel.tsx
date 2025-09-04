@@ -1,4 +1,4 @@
-// components/reports/ExportPanel.tsx - Final Excel-Only Version
+// components/reports/ExportPanel.tsx - Updated to remove period selector
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -6,7 +6,6 @@ import { useTimesheetExport } from '@/hooks/useTimesheetExport'
 
 // Import sub-components
 import { ExportPanelHeader } from './ExportPanelHeader'
-import { ExportPeriodSelector } from './ExportPeriodSelector'
 import { ExportDateRange } from './ExportDateRange'
 import { ExportConfigPanel } from './ExportConfigPanel'
 import { ExportActionPanel } from './ExportActionPanel'
@@ -15,7 +14,6 @@ import { ExportActionPanel } from './ExportActionPanel'
 // TYPES (Updated for Excel only)
 //================================================================================
 type ExportFormat = 'excel'; // Type is now fixed
-interface TimesheetPeriod { start: string; end: string; label: string; count: number; stores: string[]; }
 interface DateRange { startDate: string; endDate: string; }
 interface ExportPanelProps { userRole: string; }
 
@@ -38,32 +36,34 @@ const downloadFile = (buffer: ArrayBuffer, filename: string, mimeType: string) =
 export default function ExportPanel({ userRole }: ExportPanelProps) {
   const { exportState, exportTimesheets, validateExportOptions, getAvailableFormats } = useTimesheetExport()
   
-  // State management
-  // `selectedFormat` is no longer needed as state, it's always 'excel'
+  // State management - removed selectedPeriodIndex since we removed period selector
   const [dateRange, setDateRange] = useState<DateRange>({ startDate: '', endDate: '' })
   const [options, setOptions] = useState({ includeNotes: true, includeEmptyDays: false })
   const [customFilename, setCustomFilename] = useState('')
-  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState<number>(-1)
 
   const availableFormats = useMemo(() => getAvailableFormats(userRole), [getAvailableFormats, userRole])
 
   useEffect(() => {
+    // Set default to current week instead of current month
     const today = new Date()
-    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const currentDay = today.getDay() // 0 = Sunday, 1 = Monday, etc.
+    
+    // Calculate start of week (Monday)
+    const startOfWeek = new Date(today)
+    startOfWeek.setDate(today.getDate() - (currentDay === 0 ? 6 : currentDay - 1))
+    
+    // Calculate end of week (Sunday)
+    const endOfWeek = new Date(startOfWeek)
+    endOfWeek.setDate(startOfWeek.getDate() + 6)
+    
     setDateRange({
-      startDate: firstOfMonth.toISOString().split('T')[0] ?? '',
-      endDate: today.toISOString().split('T')[0] ?? ''
+      startDate: startOfWeek.toISOString().split('T')[0] ?? '',
+      endDate: endOfWeek.toISOString().split('T')[0] ?? ''
     })
-  }, [])
-
-  const handlePeriodSelect = useCallback((period: TimesheetPeriod, index: number) => {
-    setDateRange({ startDate: period.start, endDate: period.end })
-    setSelectedPeriodIndex(index)
   }, [])
 
   const handleCustomDateChange = useCallback((field: 'startDate' | 'endDate', value: string) => {
     setDateRange(prev => ({ ...prev, [field]: value }))
-    setSelectedPeriodIndex(-1)
   }, [])
 
   const handleOptionChange = useCallback((option: keyof typeof options, value: boolean) => {
@@ -108,18 +108,16 @@ export default function ExportPanel({ userRole }: ExportPanelProps) {
         lastExport={exportState.lastExport}
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left column - only date range now */}
         <div className="space-y-6">
-          <ExportPeriodSelector
-            onPeriodSelect={handlePeriodSelect}
-            selectedIndex={selectedPeriodIndex}
-            disabled={exportState.isLoading}
-          />
           <ExportDateRange
             dateRange={dateRange}
             onDateChange={handleCustomDateChange}
             disabled={exportState.isLoading}
           />
         </div>
+        
+        {/* Middle column - configuration */}
         <ExportConfigPanel
           availableFormats={availableFormats}
           selectedFormat={'excel'} // Hardcoded
@@ -129,6 +127,8 @@ export default function ExportPanel({ userRole }: ExportPanelProps) {
           onFilenameChange={setCustomFilename}
           disabled={exportState.isLoading}
         />
+        
+        {/* Right column - action panel */}
         <ExportActionPanel
           exportState={exportState}
           onExport={handleExport}

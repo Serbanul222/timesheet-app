@@ -131,13 +131,13 @@ export class TransferValidationRules {
   ): Promise<TransferValidationResult> {
     try {
       // Cannot approve own transfer
-    //   if (transfer.initiated_by === userId) {
-    //     return {
-    //       isValid: false,
-    //       error: TRANSFER_MESSAGES.CANNOT_APPROVE_OWN_TRANSFER,
-    //       canTransfer: false
-    //     }
-    //   }
+      if (transfer.initiated_by === userId) {
+        return {
+          isValid: false,
+          error: TRANSFER_MESSAGES.CANNOT_APPROVE_OWN_TRANSFER,
+          canTransfer: false
+        }
+      }
 
       // Transfer must be pending
       if (transfer.status !== 'pending') {
