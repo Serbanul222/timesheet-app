@@ -163,10 +163,14 @@ class ExternalDatabaseService {
       })
 
       connection = await this.pool.getConnection()
-      
+
       if (options?.timeout) {
-        // Set query timeout if specified
-        await connection.query('SET SESSION max_execution_time = ?', [options.timeout])
+        // Set query timeout if specified (only for MySQL 5.7.8+, ignore errors for compatibility)
+        try {
+          await connection.query('SET SESSION max_execution_time = ?', [options.timeout])
+        } catch (error) {
+          console.log('Query timeout not supported by database version, continuing without timeout')
+        }
       }
 
       const [rows] = await connection.execute(sql, params)
