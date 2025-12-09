@@ -1,6 +1,6 @@
 // lib/services/employeeLookupService.ts
-// Updated to use HTTP bridge instead of direct database connection
 import { z } from 'zod'
+import { externalDb } from './externalDbService'
 
 // Validation schemas
 const EmailSearchSchema = z.object({
@@ -50,139 +50,9 @@ export interface EmployeeLookupOptions {
   timeout?: number
 }
 
-/**
- * HTTP Database Bridge Client
- * Replaces direct database connection with HTTP calls to your bridge
- */
-class HTTPDatabaseBridge {
-  private bridgeUrl: string;
-
-  constructor() {
-    this.bridgeUrl = process.env.DB_BRIDGE_URL || '';
-    if (!this.bridgeUrl) {
-      throw new Error('DB_BRIDGE_URL environment variable is required');
-    }
-    
-    // Ensure URL doesn't end with slash
-    this.bridgeUrl = this.bridgeUrl.replace(/\/$/, '');
-  }
-
-  /**
-   * Execute a single query and return first result
-   */
-  async executeQuerySingle<T>(sql: string, params: any[] = []): Promise<T | null> {
-    try {
-      const response = await fetch(`${this.bridgeUrl}/query`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'User-Agent': 'Vercel-App/1.0'
-        },
-        body: JSON.stringify({ sql, params }),
-        // Add timeout for Vercel serverless functions
-        signal: AbortSignal.timeout(25000) // 25 seconds
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Database query failed');
-      }
-
-      // Return first result or null
-      return result.data && result.data.length > 0 ? result.data[0] : null;
-      
-    } catch (error) {
-      console.error('Database query failed:', { 
-        sql, 
-        params, 
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Execute query and return all results
-   */
-  async executeQuery<T>(sql: string, params: any[] = []): Promise<T[]> {
-    try {
-      const response = await fetch(`${this.bridgeUrl}/query`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'User-Agent': 'Vercel-App/1.0'
-        },
-        body: JSON.stringify({ sql, params }),
-        signal: AbortSignal.timeout(25000)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Database query failed');
-      }
-
-      return result.data || [];
-      
-    } catch (error) {
-      console.error('Database query failed:', { 
-        sql, 
-        params, 
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Test connection to database bridge
-   */
-  async getConnectionStatus(): Promise<{ isConnected: boolean; error?: string }> {
-    try {
-      const response = await fetch(`${this.bridgeUrl}/test`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000) // 10 seconds for health check
-      });
-
-      if (!response.ok) {
-        return {
-          isConnected: false,
-          error: `HTTP ${response.status}: ${response.statusText}`
-        };
-      }
-
-      const result = await response.json();
-      
-      return {
-        isConnected: result.success === true,
-        error: result.success ? undefined : result.error
-      };
-      
-    } catch (error) {
-      return {
-        isConnected: false,
-        error: error instanceof Error ? error.message : 'Connection test failed'
-      };
-    }
-  }
-}
-
-// Create instance of HTTP bridge (replaces externalDb)
-const httpBridge = new HTTPDatabaseBridge();
 
 /**
  * Service for looking up employee data from external Lensa Shop database
- * Now uses HTTP bridge instead of direct database connection
  */
 export class EmployeeLookupService {
   
@@ -264,19 +134,19 @@ export class EmployeeLookupService {
   }
 
   /**
-   * Execute the main employee lookup query via HTTP bridge
+   * Execute the main employee lookup query
    */
   private static async executeEmployeeLookup(
     email: string,
     options: EmployeeLookupOptions
   ): Promise<ExternalEmployeeData | null> {
-    
+
     // Build the SQL query with proper parameterization - INCLUDE ID!
     const sql = `
-      SELECT 
+      SELECT
         c.id,
         c.email,
-        c.firstname, 
+        c.firstname,
         c.lastname,
         e.job_name
       FROM lensa_shop.customers c
@@ -287,9 +157,10 @@ export class EmployeeLookupService {
       LIMIT 1
     `
 
-    const result = await httpBridge.executeQuerySingle<ExternalEmployeeData>(
-      sql, 
-      [email]
+    const result = await externalDb.executeQuerySingle<ExternalEmployeeData>(
+      sql,
+      [email],
+      { timeout: options.timeout }
     )
 
     if (result) {
@@ -301,18 +172,18 @@ export class EmployeeLookupService {
   }
 
   /**
-   * Execute employee search by pattern via HTTP bridge
+   * Execute employee search by pattern
    */
   private static async executeEmployeeSearch(
     emailPattern: string,
     limit: number
   ): Promise<ExternalEmployeeData[]> {
-    
+
     const sql = `
-      SELECT 
+      SELECT
         c.id,
         c.email,
-        c.firstname, 
+        c.firstname,
         c.lastname,
         e.job_name
       FROM lensa_shop.customers c
@@ -325,8 +196,8 @@ export class EmployeeLookupService {
       LIMIT ?
     `
 
-    const results = await httpBridge.executeQuery<ExternalEmployeeData>(
-      sql, 
+    const results = await externalDb.executeQuery<ExternalEmployeeData>(
+      sql,
       [emailPattern, limit]
     )
 
@@ -392,11 +263,11 @@ export class EmployeeLookupService {
   }
 
   /**
-   * Test database connectivity via HTTP bridge
+   * Test database connectivity
    */
   static async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      const status = await httpBridge.getConnectionStatus()
+      const status = await externalDb.getConnectionStatus()
       return {
         success: status.isConnected,
         error: status.error
