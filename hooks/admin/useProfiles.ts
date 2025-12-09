@@ -3,7 +3,8 @@
 
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ProfileService, type EnhancedProfile, type CreateProfileRequest, type BulkImportResult } from '@/lib/services/profileSerivce'
+import { toast } from 'sonner'
+import { ProfileService, type EnhancedProfile, type CreateProfileRequest, type BulkImportResult } from '@/lib/services/profileService'
 
 export function useProfiles() {
   const queryClient = useQueryClient()

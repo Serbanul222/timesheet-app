@@ -108,16 +108,12 @@ export function LoginForm({ className = '' }: LoginFormProps) {
       }
 
       console.log('LoginForm: Sign in successful')
-      toast.success(`Bun venit înapoi, ${validation.profile?.full_name || 'User'}!`, {
-      })
-      
-      // ✅ FIX: Use router to trigger navigation (which triggers middleware)
-      console.log('LoginForm: Sign in complete, navigating to trigger middleware')
-      
-      setTimeout(() => {
-        router.push('/timesheets')
-        router.refresh() // Ensure middleware runs
-      }, 100)
+      toast.success(`Bun venit înapoi, ${validation.profile?.full_name || 'User'}!`)
+
+      // Navigate directly - middleware will handle the redirect
+      console.log('LoginForm: Redirecting to timesheets')
+      router.push('/timesheets')
+      router.refresh()
       
     } catch (err) {
       console.error('LoginForm: Unexpected error:', err)
